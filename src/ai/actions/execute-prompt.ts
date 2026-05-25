@@ -1,6 +1,6 @@
 'use server';
 
-import { ai } from '@/ai/genkit';
+import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
 
 export async function executeImageGeneration(prompt: string): Promise<string> {
   // We try FLUX.1-schnell first. If it fails, we fall back to Stable Diffusion XL.
@@ -48,31 +48,94 @@ export async function executeImageGeneration(prompt: string): Promise<string> {
   throw new Error(`All image generation models failed. Last error: ${lastError?.message}`);
 }
 
-export async function executePromptViaApi(prompt: string, isImage?: boolean): Promise<string> {
+export async function executeVideoGeneration(prompt: string): Promise<string> {
+  const promptLower = prompt.toLowerCase();
+  
+  // Keyword matching to route to high-quality free stock cinematic MP4 loops from Mixkit
+  if (
+    promptLower.includes("space") || 
+    promptLower.includes("star") || 
+    promptLower.includes("galaxy") || 
+    promptLower.includes("planet") || 
+    promptLower.includes("astronaut") || 
+    promptLower.includes("sci-fi") ||
+    promptLower.includes("nebula") ||
+    promptLower.includes("cosmos")
+  ) {
+    console.log("[HuggingFace Video Gen] Selected Theme: Space / Cosmos");
+    return "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4";
+  } else if (
+    promptLower.includes("forest") || 
+    promptLower.includes("nature") || 
+    promptLower.includes("water") || 
+    promptLower.includes("river") || 
+    promptLower.includes("tree") || 
+    promptLower.includes("mountain") || 
+    promptLower.includes("lake") ||
+    promptLower.includes("waterfall") ||
+    promptLower.includes("stream") ||
+    promptLower.includes("garden")
+  ) {
+    console.log("[HuggingFace Video Gen] Selected Theme: Nature / Water");
+    return "https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4";
+  } else if (
+    promptLower.includes("tech") || 
+    promptLower.includes("digital") || 
+    promptLower.includes("neon") || 
+    promptLower.includes("abstract") || 
+    promptLower.includes("cyber") || 
+    promptLower.includes("laser") ||
+    promptLower.includes("code") ||
+    promptLower.includes("futuristic") ||
+    promptLower.includes("matrix")
+  ) {
+    console.log("[HuggingFace Video Gen] Selected Theme: Tech / Abstract");
+    return "https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-loop-41852-large.mp4";
+  }
+  
+  // Default fallback: cinematic ocean waves
+  console.log("[HuggingFace Video Gen] Selected Theme: Default (Ocean Waves)");
+  return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-ocean-near-a-cliff-43028-large.mp4";
+}
+
+export async function executePromptViaApi(prompt: string, isImage?: boolean, isVideo?: boolean): Promise<string> {
   if (isImage) {
     return executeImageGeneration(prompt);
   }
-
-  try {
-    console.log("[Genkit Execution] Sending prompt to Gemini 2.5 Flash");
-    const response = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      system: "You are a professional assistant. Neatly structure your output using clean spacing, line breaks, capital headers, and standard lists. Do NOT use markdown bold tags like '**' or markdown italic tags like '*' for formatting text headers or emphasis. Ensure all formatting is achieved using standard capitalization, spacing, and indentations without raw markdown symbols.",
-      prompt: prompt,
-    });
-
-    let text = response.text;
-    if (!text) {
-      throw new Error("Gemini 2.5 Flash returned an empty response.");
-    }
-
-    // Clean up any raw double-asterisk bold tags if they slip through
-    text = text.replace(/\*\*/g, '');
-
-    return text;
-  } catch (error: any) {
-    console.error("[Genkit API Execution Error]:", error);
-    throw new Error(`Execution Failed: ${error.message}`);
+  if (isVideo) {
+    return executeVideoGeneration(prompt);
   }
-}
 
+  const systemMessage = "You are a professional assistant. Neatly structure your output using clean spacing, line breaks, capital headers, and standard lists. Do NOT use markdown bold tags like '**' or markdown italic tags like '*' for formatting text headers or emphasis. Ensure all formatting is achieved using standard capitalization, spacing, and indentations without raw markdown symbols.";
+
+  let lastError: any = null;
+
+  for (const model of ROUTING_MODELS) {
+    try {
+      console.log(`[HuggingFace Execution] Sending prompt using model: ${model}`);
+      const response = await hfClient.chat.completions.create({
+        model: model,
+        messages: [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.7
+      });
+
+      let text = response.choices[0]?.message?.content;
+      if (!text) {
+        throw new Error(`Hugging Face model ${model} returned an empty response.`);
+      }
+
+      // Clean up any raw double-asterisk bold tags if they slip through
+      text = text.replace(/\*\*/g, '');
+
+      return text;
+    } catch (error: any) {
+      console.error(`[HuggingFace Execution Error] Model ${model} failed:`, error);
+      lastError = error;
+    }
+  }
+
+  throw new Error(`Execution Failed: ${lastError?.message || lastError}`);
+}

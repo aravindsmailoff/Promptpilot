@@ -1,8 +1,8 @@
 'use server';
 
-import { z } from 'genkit';
+import { z } from 'zod';
 import { SUPPORTED_AIS } from '@/lib/ai-data';
-import { ai } from '@/ai/genkit';
+import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
 
 const AnalyzeTaskInputSchema = z.object({
   taskDescription: z.string().describe('A plain language description of the user\'s task.'),
@@ -34,7 +34,7 @@ The output JSON structure MUST contain exactly these keys:
   "selectedAI": "The exact display name of the selected AI.",
   "aiUrl": "The official URL where the user can access this AI (must start with http).",
   "reasoning": "A concise briefing on the model's tactical advantage (max 12 words).",
-  "optimizedPrompt": "A master-engineered prompt optimized for the target AI."
+  "optimizedPrompt": "A master-level prompt optimized for the selected AI's specific strengths."
 }
 
 ### Step 1: Tactical Fleet Analysis
@@ -53,39 +53,51 @@ Selection Criteria:
 Objective: "${input.taskDescription}"
 ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
 
-  try {
-    console.log("[PromptPilot] Routing task using Gemini 2.5 Flash via Genkit");
-    
-    const userContent: any[] = [{ text: userText }];
-    if (input.imageUri) {
-      userContent.push({ media: { url: input.imageUri } });
-    }
+  let lastError: any = null;
 
-    const response = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userContent
-        }
-      ],
-      output: {
-        schema: AnalyzeTaskOutputSchema
-      },
-      config: {
-        temperature: 0.1
+  // Try routing models in sequence
+  for (const model of ROUTING_MODELS) {
+    try {
+      console.log(`[PromptPilot] Routing task using Hugging Face model: ${model}`);
+      
+      const userContent: any[] = [{ type: "text", text: userText }];
+      if (input.imageUri) {
+        userContent.push({
+          type: "image_url",
+          image_url: {
+            url: input.imageUri
+          }
+        });
       }
-    });
 
-    if (!response.output) {
-      throw new Error("Failed to generate structured routing parameters.");
+      const response = await hfClient.chat.completions.create({
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent as any }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error(`Empty response from Hugging Face model ${model}`);
+      }
+
+      console.log("[PromptPilot] Hugging Face raw response content:", content);
+      
+      // Parse and validate the response
+      const parsedOutput = AnalyzeTaskOutputSchema.parse(JSON.parse(content));
+      console.log("[PromptPilot] Routing success:", parsedOutput);
+      return parsedOutput;
+
+    } catch (error: any) {
+      console.error(`[PromptPilot] Routing error with model ${model}:`, error);
+      lastError = error;
+      // Fallback to the next model in the list
     }
-
-    console.log("[PromptPilot] Routing success:", response.output);
-    return response.output;
-  } catch (error: any) {
-    console.error("[PromptPilot] Routing error:", error);
-    throw new Error(`Orchestration routing failed: ${error.message}`);
   }
+
+  throw new Error(`Orchestration routing failed: ${lastError?.message || lastError}`);
 }

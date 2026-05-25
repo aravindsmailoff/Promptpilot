@@ -1,14 +1,14 @@
 'use server';
 /**
- * @fileOverview A Genkit flow that executes a prompt using a high-performance model.
+ * @fileOverview A function that executes a prompt using a high-performance model via Hugging Face.
  *
  * - executeWithGemma - A function that handles the execution process.
  * - ExecuteWithGemmaInput - The input type for the function.
  * - ExecuteWithGemmaOutput - The return type for the function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { hfClient, PRIMARY_ROUTING_MODEL } from '@/ai/huggingface';
+import { z } from 'zod';
 
 const ExecuteWithGemmaInputSchema = z.object({
   prompt: z.string().describe('The optimized prompt to execute.'),
@@ -26,25 +26,24 @@ export type ExecuteWithGemmaOutput = z.infer<typeof ExecuteWithGemmaOutputSchema
  * @returns The generated response.
  */
 export async function executeWithGemma(input: ExecuteWithGemmaInput): Promise<ExecuteWithGemmaOutput> {
-  return executeWithGemmaFlow(input);
-}
-
-const executeWithGemmaFlow = ai.defineFlow(
-  {
-    name: 'executeWithGemmaFlow',
-    inputSchema: ExecuteWithGemmaInputSchema,
-    outputSchema: ExecuteWithGemmaOutputSchema,
-  },
-  async (input) => {
-    const {text} = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      prompt: input.prompt,
+  try {
+    console.log(`[HuggingFace Execution] Executing prompt using model ${PRIMARY_ROUTING_MODEL}`);
+    const response = await hfClient.chat.completions.create({
+      model: PRIMARY_ROUTING_MODEL,
+      messages: [
+        { role: 'user', content: input.prompt }
+      ],
+      temperature: 0.7
     });
     
+    const text = response.choices[0]?.message?.content;
     if (!text) {
       throw new Error('Intelligence engine failed to return a response.');
     }
     
     return { response: text };
+  } catch (error: any) {
+    console.error("[HuggingFace Execution Error]:", error);
+    throw new Error(`Failed to execute prompt: ${error.message}`);
   }
-);
+}

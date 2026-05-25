@@ -148,6 +148,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       // Save mission to DB if logged in
       let savedId: string | null = null;
       const isImage = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Image Generation' : false;
+      const isVideo = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Video Generation' : false;
       if (session) {
         savedId = await saveMissionHistory({
           taskDescription: task,
@@ -155,7 +156,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
           aiUrl: output.aiUrl,
           reasoning: output.reasoning,
           optimizedPrompt: output.optimizedPrompt,
-          isImageTask: isImage
+          isImageTask: isImage || isVideo
         });
         setCurrentHistoryId(savedId);
       } else {
@@ -163,7 +164,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       }
 
       // Auto-deploy execution agent
-      handleAutoExecute(output.optimizedPrompt, isImage, savedId);
+      handleAutoExecute(output.optimizedPrompt, isImage, isVideo, savedId);
     } catch (err) {
       console.error("Routing Error:", err);
       toast({
@@ -198,6 +199,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       // Save refined mission to DB if logged in
       let savedId: string | null = null;
       const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
+      const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
       if (session) {
         savedId = await saveMissionHistory({
           taskDescription: task,
@@ -205,7 +207,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
           aiUrl: result.aiUrl,
           reasoning: result.reasoning,
           optimizedPrompt: output.refinedPrompt,
-          isImageTask: isImage
+          isImageTask: isImage || isVideo
         });
         setCurrentHistoryId(savedId);
       } else {
@@ -213,7 +215,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       }
 
       // Auto-deploy execution agent with refined prompt
-      handleAutoExecute(output.refinedPrompt, isImage, savedId);
+      handleAutoExecute(output.refinedPrompt, isImage, isVideo, savedId);
     } catch (err) {
       toast({
         variant: "destructive",
@@ -252,7 +254,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     window.open(targetUrl, '_blank');
   };
 
-  const handleAutoExecute = async (overridePrompt?: string, forceIsImage?: boolean, historyIdToUpdate?: string | null) => {
+  const handleAutoExecute = async (overridePrompt?: string, forceIsImage?: boolean, forceIsVideo?: boolean, historyIdToUpdate?: string | null) => {
     const promptToRun = overridePrompt || result?.optimizedPrompt;
     if (!promptToRun) return;
     setExecuting(true);
@@ -262,12 +264,16 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       ? forceIsImage
       : (result ? getAIById(result.selectedAI)?.category === 'Image Generation' : false) || /create an image|generate an image|draw a|make an image|paint a/i.test(task);
 
+    const isVideo = typeof forceIsVideo === 'boolean'
+      ? forceIsVideo
+      : (result ? getAIById(result.selectedAI)?.category === 'Video Generation' : false) || /create a video|generate a video|make a video|render a video/i.test(task);
+
     try {
       toast({
-        title: isImage ? "Visual Synthesizer Deployed" : "Agent Deployed",
-        description: isImage ? "Synthesizing image via secure API pipeline..." : "Executing prompt via secure API pipeline..."
+        title: isImage ? "Visual Synthesizer Deployed" : isVideo ? "Motion Synthesizer Deployed" : "Agent Deployed",
+        description: isImage ? "Synthesizing image via secure API pipeline..." : isVideo ? "Synthesizing video via secure API pipeline..." : "Executing prompt via secure API pipeline..."
       });
-      const output = await executePromptViaApi(promptToRun, isImage);
+      const output = await executePromptViaApi(promptToRun, isImage, isVideo);
       setExecutionResult(output);
 
       // Update DB history record if logged in and we have a valid history ID
@@ -277,8 +283,8 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       }
 
       toast({
-        title: isImage ? "Synthesis Complete" : "Execution Complete",
-        description: isImage ? "Image successfully generated." : "Data successfully extracted."
+        title: isImage ? "Synthesis Complete" : isVideo ? "Motion Synthesis Complete" : "Execution Complete",
+        description: isImage ? "Image successfully generated." : isVideo ? "Video successfully generated." : "Data successfully extracted."
       });
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -326,6 +332,20 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       toast({
         title: "Image Downloaded",
         description: "Your AI-generated image was saved successfully."
+      });
+      return;
+    }
+    const isVideo = executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4');
+    if (isVideo) {
+      const a = document.createElement('a');
+      a.href = executionResult;
+      a.download = `PromptPilot_Generated_Video.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast({
+        title: "Video Downloaded",
+        description: "Your AI-generated video was saved successfully."
       });
       return;
     }
@@ -528,7 +548,8 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                   className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-accent hover:bg-accent/90 text-accent-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(255,165,0,0.4)] transition-all relative overflow-hidden" 
                   onClick={() => {
                     const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
-                    handleAutoExecute(undefined, isImage, currentHistoryId);
+                    const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
+                    handleAutoExecute(undefined, isImage, isVideo, currentHistoryId);
                   }}
                   disabled={executing}
                 >
@@ -553,6 +574,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               {(executing || executionResult) && (() => {
                 const aiConfig = result ? getAIById(result.selectedAI) : null;
                 const isImageTask = aiConfig?.category === 'Image Generation' || /create an image|generate an image|draw a|make an image|paint a/i.test(task);
+                const isVideoTask = aiConfig?.category === 'Video Generation' || /create a video|generate a video|make a video|render a video/i.test(task);
                 return (
                   <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 animate-in zoom-in-95 duration-500 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
                     {/* Decorative glowing gradient border top */}
@@ -573,6 +595,8 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                           <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest block mt-0.5">
                             {executionResult && executionResult.startsWith('data:image/') 
                               ? "Powered by FLUX.1 [schnell]" 
+                              : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4'))
+                              ? `Powered by ${result?.selectedAI || "Stable Video Diffusion"}`
                               : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
                           </span>
                         </div>
@@ -580,7 +604,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
                       {!executing && executionResult && (
                         <div className="flex flex-wrap items-center gap-2">
-                          {executionResult && !executionResult.startsWith('data:image/') && (
+                          {executionResult && !executionResult.startsWith('data:image/') && !(executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) && (
                             <Button 
                               size="sm" 
                               variant="ghost" 
@@ -600,14 +624,15 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                             onClick={downloadResult}
                             className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
                           >
-                            <FileText className="mr-1.5 h-3.5 w-3.5" /> {executionResult && executionResult.startsWith('data:image/') ? "Download Image" : "Download"}
+                            <FileText className="mr-1.5 h-3.5 w-3.5" /> {executionResult && executionResult.startsWith('data:image/') ? "Download Image" : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) ? "Download Video" : "Download"}
                           </Button>
                           <Button 
                             size="sm" 
                             variant="ghost" 
                             onClick={() => {
                               const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
-                              handleAutoExecute(undefined, isImage);
+                              const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
+                              handleAutoExecute(undefined, isImage, isVideo);
                             }}
                             className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
                           >
@@ -627,11 +652,13 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                         </div>
                         <div className="space-y-1">
                           <div className="text-white text-base font-bold tracking-tight">
-                            {isImageTask ? "AI is synthesizing image..." : "AI is generating response..."}
+                            {isImageTask ? "AI is synthesizing image..." : isVideoTask ? "AI is rendering video..." : "AI is generating response..."}
                           </div>
                           <div className="text-xs text-white/40 font-medium">
                             {isImageTask 
                               ? "Rendering high-fidelity pixels with target model configurations." 
+                              : isVideoTask
+                              ? "Compiling frames and motion dynamics with target model configurations."
                               : "Processing your instructions with target model configurations."}
                           </div>
                         </div>
@@ -651,6 +678,20 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                               src={executionResult} 
                               alt="AI Generated Output" 
                               className="w-full h-full object-cover animate-in fade-in zoom-in duration-500 hover:scale-[1.02] transition-transform" 
+                            />
+                          </div>
+                        </div>
+                      ) : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) ? (
+                        <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
+                          <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
+                          <div className="relative max-w-lg w-full aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/video-view">
+                            <video 
+                              src={executionResult} 
+                              controls 
+                              autoPlay 
+                              loop 
+                              playsInline
+                              className="w-full h-full object-cover animate-in fade-in zoom-in duration-500" 
                             />
                           </div>
                         </div>

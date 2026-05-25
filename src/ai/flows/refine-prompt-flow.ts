@@ -1,7 +1,7 @@
 'use server';
 
-import { z } from 'genkit';
-import { ai } from '@/ai/genkit';
+import { z } from 'zod';
+import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
 
 const RefinePromptInputSchema = z.object({
   previousPrompt: z.string().describe('The previous prompt that was generated or used.'),
@@ -26,30 +26,41 @@ The output JSON structure MUST contain exactly this key:
   const userText = `Previous Prompt: """${input.previousPrompt}"""
 User Feedback for refinement: """${input.feedback}"""`;
 
-  try {
-    console.log("[PromptPilot] Refining prompt using Gemini 2.5 Flash via Genkit");
-    
-    const response = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      system: systemPrompt,
-      prompt: userText,
-      output: {
-        schema: RefinePromptOutputSchema
-      },
-      config: {
+  let lastError: any = null;
+
+  // Try routing models in sequence
+  for (const model of ROUTING_MODELS) {
+    try {
+      console.log(`[PromptPilot] Refining prompt using Hugging Face model: ${model}`);
+      
+      const response = await hfClient.chat.completions.create({
+        model: model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userText }
+        ],
+        response_format: { type: 'json_object' },
         temperature: 0.2
+      });
+
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error(`Empty response from Hugging Face model ${model}`);
       }
-    });
 
-    if (!response.output) {
-      throw new Error("Failed to generate refined prompt.");
+      console.log("[PromptPilot] Refinement raw response content:", content);
+      
+      // Parse and validate the response
+      const parsedOutput = RefinePromptOutputSchema.parse(JSON.parse(content));
+      console.log("[PromptPilot] Refinement success:", parsedOutput);
+      return parsedOutput;
+
+    } catch (error: any) {
+      console.error(`[PromptPilot] Refinement error with model ${model}:`, error);
+      lastError = error;
+      // Fallback to the next model in the list
     }
-
-    console.log("[PromptPilot] Refinement success:", response.output);
-    return response.output;
-
-  } catch (error: any) {
-    console.error("[PromptPilot] Refinement error:", error);
-    throw new Error(`Failed to refine prompt via Genkit: ${error.message}`);
   }
+
+  throw new Error(`Failed to refine prompt: ${lastError?.message || lastError}`);
 }

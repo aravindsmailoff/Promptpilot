@@ -89,6 +89,44 @@ export const SUPPORTED_AIS = [
     category: 'Reasoning & Analysis'
   },
 
+  // --- Open-Source Video Generation ---
+  {
+    id: 'StableVideoDiffusion',
+    name: 'Stable Video Diffusion',
+    description: 'Premier open-source image-to-video and text-to-video model. Excellent for cinematic and realistic movement.',
+    url: 'https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt',
+    icon: Video,
+    color: 'text-pink-500',
+    category: 'Video Generation'
+  },
+  {
+    id: 'CogVideoX',
+    name: 'CogVideoX',
+    description: 'High-performance open-source text-to-video transformer. Great at narrative scenes and dense motion physics.',
+    url: 'https://huggingface.co/THUDM/CogVideoX-5b',
+    icon: Video,
+    color: 'text-violet-400',
+    category: 'Video Generation'
+  },
+  {
+    id: 'Mochi',
+    name: 'Mochi 1',
+    description: 'Next-generation open-source video model. Advanced physical simulation, highly realistic motions and physics.',
+    url: 'https://huggingface.co/genmo/mochi-1-preview',
+    icon: Video,
+    color: 'text-rose-500',
+    category: 'Video Generation'
+  },
+  {
+    id: 'LTXVideo',
+    name: 'LTX-Video',
+    description: 'Ultra-fast open-source video generation transformer. Optimised for real-time visual output and control.',
+    url: 'https://huggingface.co/Lightricks/LTX-Video',
+    icon: Video,
+    color: 'text-fuchsia-400',
+    category: 'Video Generation'
+  },
+
   // --- Engineering & Performance ---
   {
     id: 'Codeium',
