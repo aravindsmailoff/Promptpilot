@@ -51,7 +51,7 @@ export async function executeImageGeneration(prompt: string): Promise<string> {
 export async function executeVideoGeneration(prompt: string): Promise<string> {
   const promptLower = prompt.toLowerCase();
   
-  // Keyword matching to route to high-quality free stock cinematic MP4 loops from Mixkit
+  // Keyword matching to route to high-quality free stock cinematic MP4 loops
   if (
     promptLower.includes("space") || 
     promptLower.includes("star") || 
@@ -63,7 +63,7 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
     promptLower.includes("cosmos")
   ) {
     console.log("[HuggingFace Video Gen] Selected Theme: Space / Cosmos");
-    return "https://assets.mixkit.co/videos/preview/mixkit-stars-in-space-background-1611-large.mp4";
+    return "https://media.w3.org/2010/05/sintel/trailer_hd.mp4";
   } else if (
     promptLower.includes("forest") || 
     promptLower.includes("nature") || 
@@ -77,7 +77,7 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
     promptLower.includes("garden")
   ) {
     console.log("[HuggingFace Video Gen] Selected Theme: Nature / Water");
-    return "https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4";
+    return "https://www.w3schools.com/html/mov_bbb.mp4";
   } else if (
     promptLower.includes("tech") || 
     promptLower.includes("digital") || 
@@ -90,12 +90,12 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
     promptLower.includes("matrix")
   ) {
     console.log("[HuggingFace Video Gen] Selected Theme: Tech / Abstract");
-    return "https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-loop-41852-large.mp4";
+    return "https://www.w3schools.com/html/movie.mp4";
   }
   
   // Default fallback: cinematic ocean waves
   console.log("[HuggingFace Video Gen] Selected Theme: Default (Ocean Waves)");
-  return "https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-ocean-near-a-cliff-43028-large.mp4";
+  return "https://vjs.zencdn.net/v/oceans.mp4";
 }
 
 export async function executePromptViaApi(prompt: string, isImage?: boolean, isVideo?: boolean): Promise<string> {
