@@ -1,7 +1,7 @@
 
 import type {NextConfig} from 'next';
 
-const nextConfig: NextConfig = {
+const nextConfig: any = {
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:9002', '10.0.2.2:9002'],
