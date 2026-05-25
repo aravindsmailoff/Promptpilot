@@ -42,11 +42,21 @@ export function DirectoryTab() {
     setIsSubmitting(true);
     
     try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
 
+      if (!response.ok) {
+        throw new Error('Failed to submit model');
+      }
 
       toast({
         title: "Model Intelligence Logged",
-        description: "Your model parameters have been saved locally for review.",
+        description: "Your model parameters have been saved to the database.",
       });
       
       setFormData({ modelName: '', modelUrl: '', description: '' });

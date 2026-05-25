@@ -7,13 +7,49 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { User, Zap, Info } from 'lucide-react';
+import { User, Zap, Info, Loader2, LogIn, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useSession, signIn, signOut } from 'next-auth/react';
+import { useState } from 'react';
 
 export function SettingsTab() {
   const { toast } = useToast();
+  const { data: session, status } = useSession();
+  const [authLoading, setAuthLoading] = useState(false);
 
+  const handleSignIn = async () => {
+    setAuthLoading(true);
+    try {
+      await signIn('google');
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Authentication Failed",
+        description: "Could not establish connection with identity provider."
+      });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
+  const handleSignOut = async () => {
+    setAuthLoading(true);
+    try {
+      await signOut();
+      toast({
+        title: "Signed Out",
+        description: "Your session has been terminated safely."
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Sign Out Failed",
+        description: "Could not terminate your session."
+      });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-16 animate-in fade-in duration-1000 pb-24">
@@ -68,8 +104,6 @@ export function SettingsTab() {
               </div>
             </CardContent>
           </Card>
-
-
         </div>
 
         <div className="space-y-10">
@@ -80,21 +114,54 @@ export function SettingsTab() {
               </div>
               <div className="flex flex-col items-center text-center gap-6 relative z-10">
                 <Avatar className="h-24 w-24 border-4 border-primary shadow-2xl">
-                  <AvatarImage src="https://picsum.photos/seed/user-avatar/200/200" />
-                  <AvatarFallback className="bg-primary/20 text-white text-2xl font-black">U</AvatarFallback>
+                  <AvatarImage src={session?.user?.image || "https://picsum.photos/seed/user-avatar/200/200"} />
+                  <AvatarFallback className="bg-primary/20 text-white text-2xl font-black">
+                    {session?.user?.name?.[0] || 'U'}
+                  </AvatarFallback>
                 </Avatar>
                 <div>
-                  <h3 className="text-2xl font-black text-white">Local User</h3>
-                  <Badge className="bg-primary text-primary-foreground border-none mt-2 px-4 py-1 font-black uppercase tracking-widest text-[10px]">ACTIVE SESSION</Badge>
+                  <h3 className="text-2xl font-black text-white truncate max-w-[200px]">
+                    {session?.user?.name || "Local User"}
+                  </h3>
+                  {session?.user?.email && (
+                    <p className="text-xs text-muted-foreground mt-1 truncate max-w-[200px]">{session.user.email}</p>
+                  )}
+                  <Badge className={`${session ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white/60'} border-none mt-2 px-4 py-1 font-black uppercase tracking-widest text-[10px]`}>
+                    {status === 'loading' ? 'LOADING...' : session ? 'CLOUD SESSION' : 'OFFLINE MODE'}
+                  </Badge>
                 </div>
               </div>
+              
               <div className="space-y-3 text-center opacity-80 font-medium">
-                <p className="text-sm">Offline-First Mode</p>
-                <p className="text-xs font-black text-primary uppercase tracking-widest">No Login Required</p>
+                <p className="text-sm">
+                  {session ? 'Synchronized with Cloud Database' : 'Offline-First Mode'}
+                </p>
+                <p className="text-xs font-black text-primary uppercase tracking-widest">
+                  {session ? 'Railway PostgreSQL Enabled' : 'No Login Required'}
+                </p>
               </div>
-              <Button variant="secondary" className="w-full h-14 rounded-2xl font-black uppercase tracking-widest bg-white text-black hover:bg-white/90 shadow-xl shadow-white/5 transition-all">
-                Update Profile
-              </Button>
+
+              {session ? (
+                <Button 
+                  variant="destructive" 
+                  onClick={handleSignOut} 
+                  disabled={authLoading}
+                  className="w-full h-14 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2"
+                >
+                  {authLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogOut className="h-5 w-5" />}
+                  Sign Out
+                </Button>
+              ) : (
+                <Button 
+                  variant="secondary" 
+                  onClick={handleSignIn} 
+                  disabled={authLoading || status === 'loading'}
+                  className="w-full h-14 rounded-2xl font-black uppercase tracking-widest bg-white text-black hover:bg-white/90 shadow-xl shadow-white/5 transition-all flex items-center justify-center gap-2"
+                >
+                  {authLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <LogIn className="h-5 w-5" />}
+                  Sign In with Google
+                </Button>
+              )}
             </div>
           </Card>
 
@@ -110,11 +177,13 @@ export function SettingsTab() {
               </div>
               <div className="flex justify-between border-b border-white/5 pb-2">
                 <span>Storage</span>
-                <span className="text-accent">None (Stateless)</span>
+                <span className={session ? "text-primary" : "text-accent"}>
+                  {session ? "PostgreSQL (Railway)" : "Local Storage (Fallback)"}
+                </span>
               </div>
               <div className="flex justify-between">
                 <span>Sync</span>
-                <span className="text-white">Browser</span>
+                <span className="text-white">{session ? "Cloud" : "Browser"}</span>
               </div>
             </div>
           </div>

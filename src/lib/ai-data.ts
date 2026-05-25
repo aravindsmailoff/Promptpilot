@@ -69,16 +69,7 @@ export const SUPPORTED_AIS = [
     category: 'Image Generation'
   },
 
-  // --- Specialized Reasoning & Research ---
-  {
-    id: 'HuggingChat',
-    name: 'HuggingChat',
-    description: 'Unfiltered access to the absolute latest open-source giants like Llama 3.3 and Qwen 2.5 Max.',
-    url: 'https://huggingface.co/chat',
-    icon: Bot,
-    color: 'text-yellow-400',
-    category: 'Open Source Intelligence'
-  },
+
   {
     id: 'Perplexity',
     name: 'Perplexity AI',

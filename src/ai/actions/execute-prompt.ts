@@ -1,6 +1,6 @@
 'use server';
 
-import { hfClient } from '@/ai/huggingface';
+import { ai } from '@/ai/genkit';
 
 export async function executeImageGeneration(prompt: string): Promise<string> {
   // We try FLUX.1-schnell first. If it fails, we fall back to Stable Diffusion XL.
@@ -54,25 +54,24 @@ export async function executePromptViaApi(prompt: string, isImage?: boolean): Pr
   }
 
   try {
-    console.log("[HuggingFace Execution] Sending prompt to Gemma 4");
-    const response = await hfClient.chat.completions.create({
-      model: "google/gemma-4-31B-it:together",
-      messages: [
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
+    console.log("[Genkit Execution] Sending prompt to Gemini 2.5 Flash");
+    const response = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
+      system: "You are a professional assistant. Neatly structure your output using clean spacing, line breaks, capital headers, and standard lists. Do NOT use markdown bold tags like '**' or markdown italic tags like '*' for formatting text headers or emphasis. Ensure all formatting is achieved using standard capitalization, spacing, and indentations without raw markdown symbols.",
+      prompt: prompt,
     });
 
-    const text = response.choices[0]?.message?.content;
+    let text = response.text;
     if (!text) {
-      throw new Error("Gemma 4 returned an empty response.");
+      throw new Error("Gemini 2.5 Flash returned an empty response.");
     }
+
+    // Clean up any raw double-asterisk bold tags if they slip through
+    text = text.replace(/\*\*/g, '');
 
     return text;
   } catch (error: any) {
-    console.error("[HuggingFace API Execution Error]:", error);
+    console.error("[Genkit API Execution Error]:", error);
     throw new Error(`Execution Failed: ${error.message}`);
   }
 }

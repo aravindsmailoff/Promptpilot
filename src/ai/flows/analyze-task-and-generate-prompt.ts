@@ -2,7 +2,7 @@
 
 import { z } from 'genkit';
 import { SUPPORTED_AIS } from '@/lib/ai-data';
-import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
+import { ai } from '@/ai/genkit';
 
 const AnalyzeTaskInputSchema = z.object({
   taskDescription: z.string().describe('A plain language description of the user\'s task.'),
@@ -29,8 +29,6 @@ export async function analyzeTaskAndGeneratePrompt(input: AnalyzeTaskInput): Pro
 
   const systemPrompt = `You are the Master Orchestrator for PromptPilot. Your objective is to analyze the user's mission and route it to the single most powerful and PRECISE AI model available.
 
-You MUST respond strictly with a valid JSON object. Do not include any markdown fences (like \`\`\`json), conversational padding, or commentary outside the JSON object.
-
 The output JSON structure MUST contain exactly these keys:
 {
   "selectedAI": "The exact display name of the selected AI.",
@@ -55,68 +53,39 @@ Selection Criteria:
 Objective: "${input.taskDescription}"
 ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
 
-  let userContent: any[] = [
-    {
-      type: "text",
-      text: userText
+  try {
+    console.log("[PromptPilot] Routing task using Gemini 2.5 Flash via Genkit");
+    
+    const userContent: any[] = [{ text: userText }];
+    if (input.imageUri) {
+      userContent.push({ media: { url: input.imageUri } });
     }
-  ];
 
-  if (input.imageUri) {
-    userContent.push({
-      type: "image_url",
-      image_url: {
-        url: input.imageUri
+    const response = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: userContent
+        }
+      ],
+      output: {
+        schema: AnalyzeTaskOutputSchema
+      },
+      config: {
+        temperature: 0.1
       }
     });
-  }
 
-  // System prompt note for Qwen3 models: prepend /no-think to skip chain-of-thought
-  // and get a direct JSON response (faster, deterministic output).
-  const qwenSystemPrompt = `/no-think\n\n${systemPrompt}`;
-
-  let lastError: Error | null = null;
-
-  for (const model of ROUTING_MODELS) {
-    const isQwen3 = model.startsWith("Qwen/Qwen3");
-    try {
-      console.log(`[PromptPilot] Trying model: ${model}`);
-      const response = await hfClient.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: isQwen3 ? qwenSystemPrompt : systemPrompt },
-          { role: "user", content: userContent as any }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.1, // low temp for deterministic JSON routing
-      });
-
-      const responseText = response.choices[0]?.message?.content;
-      if (!responseText || responseText.trim() === "") {
-        throw new Error("Empty response received from model.");
-      }
-
-      console.log(`[PromptPilot] Success with ${model}:`, responseText);
-
-      // Clean up Markdown JSON wrapper if model ignored instructions
-      let cleanJson = responseText.trim();
-      // Strip Qwen3 <think>...</think> blocks if they leak through
-      cleanJson = cleanJson.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-      if (cleanJson.startsWith("```json")) {
-        cleanJson = cleanJson.replace(/^```json/, "").replace(/```$/, "").trim();
-      } else if (cleanJson.startsWith("```")) {
-        cleanJson = cleanJson.replace(/^```/, "").replace(/```$/, "").trim();
-      }
-
-      const parsed = JSON.parse(cleanJson);
-      return AnalyzeTaskOutputSchema.parse(parsed);
-
-    } catch (error: any) {
-      console.warn(`[PromptPilot] Model ${model} failed: ${error.message}`);
-      lastError = error;
-      // Continue to next fallback model
+    if (!response.output) {
+      throw new Error("Failed to generate structured routing parameters.");
     }
-  }
 
-  throw new Error(`All routing models failed. Last error: ${lastError?.message}`);
+    console.log("[PromptPilot] Routing success:", response.output);
+    return response.output;
+  } catch (error: any) {
+    console.error("[PromptPilot] Routing error:", error);
+    throw new Error(`Orchestration routing failed: ${error.message}`);
+  }
 }

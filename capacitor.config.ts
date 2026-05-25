@@ -4,10 +4,10 @@ const config: CapacitorConfig = {
   appId: 'com.promptpilot.app',
   appName: 'PromptPilot',
   webDir: 'out',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
-    cleartext: true
+    cleartext: true,
+    url: 'http://10.0.2.2:9002'
   },
   backgroundColor: '#020617',
   plugins: {

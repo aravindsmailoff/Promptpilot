@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -21,7 +21,8 @@ import {
   Cpu,
   Layers,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Info
 } from 'lucide-react';
 import { analyzeTaskAndGeneratePrompt } from '@/ai/flows/analyze-task-and-generate-prompt';
 import { refinePrompt } from '@/ai/flows/refine-prompt-flow';
@@ -30,17 +31,36 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getAIById } from '@/lib/ai-data';
 import Image from 'next/image';
+import { saveMissionHistory, updateMissionHistoryOutput } from '@/lib/actions/history';
+import { parseOfficeFileAction } from '@/lib/actions/parse-file';
+import { useSession } from 'next-auth/react';
 
+interface HomeTabProps {
+  relaunchTask?: string | null;
+  clearRelaunchTask?: () => void;
+}
 
-
-export function HomeTab() {
+export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
+  const { data: session } = useSession();
+  const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [task, setTask] = useState('');
+
+  useEffect(() => {
+    if (relaunchTask) {
+      setTask(relaunchTask);
+      if (clearRelaunchTask) {
+        clearRelaunchTask();
+      }
+    }
+  }, [relaunchTask, clearRelaunchTask]);
+
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [refining, setRefining] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [outputCopied, setOutputCopied] = useState(false);
+
   
   // Automation states
   const [executing, setExecuting] = useState(false);
@@ -68,16 +88,43 @@ export function HomeTab() {
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFileText(reader.result as string);
-        setFileName(file.name);
-        toast({ title: "Data Stream Synced", description: file.name });
-      };
-      reader.readAsText(file);
+      const isOfficeOrPdf = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx)$/i.test(file.name);
+      
+      if (isOfficeOrPdf) {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            toast({ title: "Syncing Data Stream", description: `Extracting text from ${file.name}...` });
+            const resultString = reader.result as string;
+            const base64Data = resultString.split(',')[1];
+            if (!base64Data) {
+              throw new Error("Could not read file data.");
+            }
+            const parsedText = await parseOfficeFileAction(base64Data, file.name);
+            setFileText(parsedText);
+            setFileName(file.name);
+            toast({ title: "Data Stream Synced", description: `${file.name} loaded successfully.` });
+          } catch (err: any) {
+            toast({
+              variant: "destructive",
+              title: "Extraction Failed",
+              description: err.message || "Could not parse document."
+            });
+          }
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFileText(reader.result as string);
+          setFileName(file.name);
+          toast({ title: "Data Stream Synced", description: file.name });
+        };
+        reader.readAsText(file);
+      }
     }
   };
 
@@ -98,9 +145,25 @@ export function HomeTab() {
         description: `Mission assigned to ${output.selectedAI}`
       });
 
-      // Auto-deploy execution agent
+      // Save mission to DB if logged in
+      let savedId: string | null = null;
       const isImage = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Image Generation' : false;
-      handleAutoExecute(output.optimizedPrompt, isImage);
+      if (session) {
+        savedId = await saveMissionHistory({
+          taskDescription: task,
+          selectedAI: output.selectedAI,
+          aiUrl: output.aiUrl,
+          reasoning: output.reasoning,
+          optimizedPrompt: output.optimizedPrompt,
+          isImageTask: isImage
+        });
+        setCurrentHistoryId(savedId);
+      } else {
+        setCurrentHistoryId(null);
+      }
+
+      // Auto-deploy execution agent
+      handleAutoExecute(output.optimizedPrompt, isImage, savedId);
     } catch (err) {
       console.error("Routing Error:", err);
       toast({
@@ -132,9 +195,25 @@ export function HomeTab() {
         description: "Tactical data successfully applied."
       });
 
-      // Auto-deploy execution agent with refined prompt
+      // Save refined mission to DB if logged in
+      let savedId: string | null = null;
       const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
-      handleAutoExecute(output.refinedPrompt, isImage);
+      if (session) {
+        savedId = await saveMissionHistory({
+          taskDescription: task,
+          selectedAI: result.selectedAI,
+          aiUrl: result.aiUrl,
+          reasoning: result.reasoning,
+          optimizedPrompt: output.refinedPrompt,
+          isImageTask: isImage
+        });
+        setCurrentHistoryId(savedId);
+      } else {
+        setCurrentHistoryId(null);
+      }
+
+      // Auto-deploy execution agent with refined prompt
+      handleAutoExecute(output.refinedPrompt, isImage, savedId);
     } catch (err) {
       toast({
         variant: "destructive",
@@ -173,7 +252,7 @@ export function HomeTab() {
     window.open(targetUrl, '_blank');
   };
 
-  const handleAutoExecute = async (overridePrompt?: string, forceIsImage?: boolean) => {
+  const handleAutoExecute = async (overridePrompt?: string, forceIsImage?: boolean, historyIdToUpdate?: string | null) => {
     const promptToRun = overridePrompt || result?.optimizedPrompt;
     if (!promptToRun) return;
     setExecuting(true);
@@ -190,21 +269,36 @@ export function HomeTab() {
       });
       const output = await executePromptViaApi(promptToRun, isImage);
       setExecutionResult(output);
+
+      // Update DB history record if logged in and we have a valid history ID
+      const activeHistoryId = historyIdToUpdate || currentHistoryId;
+      if (activeHistoryId) {
+        await updateMissionHistoryOutput(activeHistoryId, output);
+      }
+
       toast({
         title: isImage ? "Synthesis Complete" : "Execution Complete",
         description: isImage ? "Image successfully generated." : "Data successfully extracted."
       });
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setExecutionResult(errorMsg);
+
+      const activeHistoryId = historyIdToUpdate || currentHistoryId;
+      if (activeHistoryId) {
+        await updateMissionHistoryOutput(activeHistoryId, `Error: ${errorMsg}`);
+      }
+
       toast({
         variant: "destructive",
         title: "Execution Error",
         description: "See output for details."
       });
-      setExecutionResult(err instanceof Error ? err.message : String(err));
     } finally {
       setExecuting(false);
     }
   };
+
 
   const copyOutputToClipboard = async () => {
     if (!executionResult) return;
@@ -319,7 +413,7 @@ export function HomeTab() {
           <div className="p-8 md:p-10 bg-white/5 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
             <div className="flex items-center gap-4 bg-black/40 p-2 rounded-[1.5rem] border border-white/5 shadow-inner">
               <input type="file" accept="image/*" ref={imageInputRef} onChange={handleImageUpload} className="hidden" />
-              <input type="file" accept=".txt,.md,.json,.js,.ts" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+              <input type="file" accept=".txt,.md,.json,.js,.ts,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
               
               <Button 
                 variant="ghost" 
@@ -385,6 +479,17 @@ export function HomeTab() {
                       <Activity className="h-3 w-3 text-accent" />
                       <span className="text-accent text-[9px] font-black uppercase tracking-widest">Target Assigned</span>
                     </div>
+                    {session ? (
+                      <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full">
+                        <Check className="h-3 w-3 text-emerald-400" />
+                        <span className="text-emerald-400 text-[9px] font-black uppercase tracking-widest">Saved to History</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5 border border-white/10 rounded-full">
+                        <Info className="h-3 w-3 text-white/40" />
+                        <span className="text-white/40 text-[9px] font-black uppercase tracking-widest">Offline Mode</span>
+                      </div>
+                    )}
                   </div>
                   <h3 className="text-4xl md:text-5xl font-black text-white tracking-tighter leading-none italic opacity-90">"{result.reasoning}"</h3>
                 </div>
@@ -412,7 +517,7 @@ export function HomeTab() {
                   {result.optimizedPrompt}
                 </div>
               </div>
-
+ 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Button className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(59,130,246,0.4)] transition-all" onClick={openAI}>
                   Manual Deploy
@@ -423,7 +528,7 @@ export function HomeTab() {
                   className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-accent hover:bg-accent/90 text-accent-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(255,165,0,0.4)] transition-all relative overflow-hidden" 
                   onClick={() => {
                     const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
-                    handleAutoExecute(undefined, isImage);
+                    handleAutoExecute(undefined, isImage, currentHistoryId);
                   }}
                   disabled={executing}
                 >

@@ -24,6 +24,8 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+import { SessionProvider } from '@/components/providers/SessionProvider';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,8 +40,11 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body className="font-body antialiased bg-background text-foreground selection:bg-accent/30 overflow-x-hidden">
-        {children}
+        <SessionProvider>
+          {children}
+        </SessionProvider>
       </body>
     </html>
   );
 }
+
