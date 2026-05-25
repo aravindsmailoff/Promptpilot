@@ -51,7 +51,13 @@ export async function executeImageGeneration(prompt: string): Promise<string> {
 export async function executeVideoGeneration(prompt: string): Promise<string> {
   const promptLower = prompt.toLowerCase();
   
-  // Keyword matching to route to high-quality free stock cinematic MP4 loops
+  // 1. Explicit Cat / Kitten Match
+  if (promptLower.includes("cat") || promptLower.includes("kitten")) {
+    console.log("[HuggingFace Video Gen] Selected Theme: Cat / Kitten");
+    return "https://github.com/opsxcq/meme-vibing-cat/raw/master/cat.mp4";
+  }
+  
+  // 2. Space / Cosmos / Sci-fi Match
   if (
     promptLower.includes("space") || 
     promptLower.includes("star") || 
@@ -64,21 +70,29 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
   ) {
     console.log("[HuggingFace Video Gen] Selected Theme: Space / Cosmos");
     return "https://media.w3.org/2010/05/sintel/trailer_hd.mp4";
-  } else if (
+  }
+  
+  // 3. Nature / Animals Match
+  if (
     promptLower.includes("forest") || 
     promptLower.includes("nature") || 
-    promptLower.includes("water") || 
     promptLower.includes("river") || 
     promptLower.includes("tree") || 
     promptLower.includes("mountain") || 
     promptLower.includes("lake") ||
     promptLower.includes("waterfall") ||
     promptLower.includes("stream") ||
-    promptLower.includes("garden")
+    promptLower.includes("garden") ||
+    promptLower.includes("animal") ||
+    promptLower.includes("rabbit") ||
+    promptLower.includes("bunny")
   ) {
     console.log("[HuggingFace Video Gen] Selected Theme: Nature / Water");
     return "https://www.w3schools.com/html/mov_bbb.mp4";
-  } else if (
+  }
+  
+  // 4. Tech / Abstract Match
+  if (
     promptLower.includes("tech") || 
     promptLower.includes("digital") || 
     promptLower.includes("neon") || 
@@ -93,7 +107,7 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
     return "https://www.w3schools.com/html/movie.mp4";
   }
   
-  // Default fallback: cinematic ocean waves
+  // 5. Default Fallback: Oceans
   console.log("[HuggingFace Video Gen] Selected Theme: Default (Ocean Waves)");
   return "https://vjs.zencdn.net/v/oceans.mp4";
 }
