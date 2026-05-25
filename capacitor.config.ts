@@ -7,7 +7,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    url: 'http://10.0.2.2:9002'
+    url: 'http://localhost:9002',
+    allowNavigation: [
+      'localhost:9002',
+      '*.google.com',
+      '*.googleusercontent.com',
+      'accounts.google.com'
+    ]
   },
   backgroundColor: '#020617',
   plugins: {
