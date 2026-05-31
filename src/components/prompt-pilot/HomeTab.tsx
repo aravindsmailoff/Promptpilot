@@ -22,7 +22,8 @@ import {
   Layers,
   Trash2,
   ExternalLink,
-  Info
+  Info,
+  User
 } from 'lucide-react';
 import { analyzeTaskAndGeneratePrompt } from '@/ai/flows/analyze-task-and-generate-prompt';
 import { refinePrompt } from '@/ai/flows/refine-prompt-flow';
@@ -31,9 +32,20 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { getAIById } from '@/lib/ai-data';
 import Image from 'next/image';
-import { saveMissionHistory, updateMissionHistoryOutput } from '@/lib/actions/history';
+import { useSettings } from '@/components/providers/SettingsProvider';
+import { saveMissionHistory, updateMissionHistoryOutput, updateMissionHistoryPrompt } from '@/lib/actions/history';
 import { parseOfficeFileAction } from '@/lib/actions/parse-file';
 import { useSession } from 'next-auth/react';
+import { MarkdownRenderer } from './MarkdownRenderer';
+import { HumanizerEditor } from './HumanizerEditor';
+
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  type?: 'text' | 'image' | 'video';
+  optimizedPrompt?: string;
+}
 
 interface HomeTabProps {
   relaunchTask?: string | null;
@@ -42,6 +54,7 @@ interface HomeTabProps {
 
 export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const { data: session } = useSession();
+  const { settings, updateSetting } = useSettings();
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [task, setTask] = useState('');
 
@@ -58,8 +71,13 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const [result, setResult] = useState<any>(null);
   const [refining, setRefining] = useState(false);
   const [feedback, setFeedback] = useState('');
+  const [refineInput, setRefineInput] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [outputCopied, setOutputCopied] = useState(false);
+
+  // Chat refinement states
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [viewedPromptId, setViewedPromptId] = useState<string | null>(null);
 
   
   // Automation states
@@ -73,6 +91,11 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages, executing]);
 
   const { toast } = useToast();
 
@@ -135,10 +158,18 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       const output = await analyzeTaskAndGeneratePrompt({ 
         taskDescription: task,
         imageUri: imageUri || undefined,
-        fileText: fileText || undefined
+        fileText: fileText || undefined,
+        settings: {
+          useOllama: settings.useOllama,
+          ollamaBaseUrl: settings.ollamaBaseUrl,
+          ollamaModel: settings.ollamaModel,
+          localEngine: settings.localEngine,
+          pythonServerUrl: settings.pythonServerUrl
+        }
       });
       
       setResult({ ...output, refinements: 0 });
+      setChatMessages([]);
       
       toast({
         title: "Autonomous Routing Complete",
@@ -183,7 +214,14 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     try {
       const output = await refinePrompt({ 
         previousPrompt: result.optimizedPrompt,
-        feedback: feedback
+        feedback: feedback,
+        settings: {
+          useOllama: settings.useOllama,
+          ollamaBaseUrl: settings.ollamaBaseUrl,
+          ollamaModel: settings.ollamaModel,
+          localEngine: settings.localEngine,
+          pythonServerUrl: settings.pythonServerUrl
+        }
       });
       
       const newRefinements = (result.refinements || 0) + 1;
@@ -197,19 +235,23 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       });
 
       // Save refined mission to DB if logged in
-      let savedId: string | null = null;
+      let savedId: string | null = currentHistoryId;
       const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
       const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
       if (session) {
-        savedId = await saveMissionHistory({
-          taskDescription: task,
-          selectedAI: result.selectedAI,
-          aiUrl: result.aiUrl,
-          reasoning: result.reasoning,
-          optimizedPrompt: output.refinedPrompt,
-          isImageTask: isImage || isVideo
-        });
-        setCurrentHistoryId(savedId);
+        if (savedId) {
+          await updateMissionHistoryPrompt(savedId, output.refinedPrompt);
+        } else {
+          savedId = await saveMissionHistory({
+            taskDescription: task,
+            selectedAI: result.selectedAI,
+            aiUrl: result.aiUrl,
+            reasoning: result.reasoning,
+            optimizedPrompt: output.refinedPrompt,
+            isImageTask: isImage || isVideo
+          });
+          setCurrentHistoryId(savedId);
+        }
       } else {
         setCurrentHistoryId(null);
       }
@@ -236,11 +278,86 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     } catch (err) {}
   };
 
-  const openAI = () => {
-    copyToClipboard();
-    let targetUrl = result.aiUrl;
+  const openAI = async () => {
+    if (!result?.optimizedPrompt) return;
+    await openAIViaPrompt(result.optimizedPrompt);
+  };
 
-    const promptParam = encodeURIComponent(result.optimizedPrompt);
+  const handleRefineWithInput = async (saveCredits: boolean = false) => {
+    if (!refineInput.trim() || !result) return;
+    const inputFeedback = refineInput;
+    setRefineInput('');
+    setLoading(true);
+
+    try {
+      const output = await analyzeTaskAndGeneratePrompt({
+        taskDescription: inputFeedback,
+        settings: {
+          useOllama: settings.useOllama,
+          ollamaBaseUrl: settings.ollamaBaseUrl,
+          ollamaModel: settings.ollamaModel,
+          localEngine: settings.localEngine,
+          pythonServerUrl: settings.pythonServerUrl
+        }
+      });
+      
+      setResult({ ...output, refinements: 0 });
+      
+      let savedId: string | null = null;
+      const isImage = getAIById(output.selectedAI)?.category === 'Image Generation';
+      const isVideo = getAIById(output.selectedAI)?.category === 'Video Generation';
+      if (session) {
+        savedId = await saveMissionHistory({
+          taskDescription: inputFeedback,
+          selectedAI: output.selectedAI,
+          aiUrl: output.aiUrl,
+          reasoning: output.reasoning,
+          optimizedPrompt: output.optimizedPrompt,
+          isImageTask: isImage || isVideo
+        });
+        setCurrentHistoryId(savedId);
+      } else {
+        setCurrentHistoryId(null);
+      }
+
+      setLoading(false);
+
+      if (saveCredits) {
+        try {
+          await navigator.clipboard.writeText(output.optimizedPrompt);
+        } catch (clipErr) {
+          console.warn("Clipboard copy failed:", clipErr);
+        }
+        toast({
+          title: "Prompt Structured & Copied",
+          description: "Optimized prompt updated and copied to clipboard. Credits saved!"
+        });
+      } else {
+        await handleAutoExecute(output.optimizedPrompt, isImage, isVideo, savedId);
+      }
+    } catch (err: any) {
+      setLoading(false);
+      toast({
+        variant: "destructive",
+        title: "Execution Error",
+        description: err.message || "Failed to execute the new task."
+      });
+    }
+  };
+
+  const openAIViaPrompt = async (promptText: string) => {
+    try {
+      await navigator.clipboard.writeText(promptText);
+      toast({
+        title: "Prompt Copied",
+        description: "Optimized prompt copied to clipboard. Ready to paste!"
+      });
+    } catch (err) {
+      console.warn("Clipboard copy failed:", err);
+    }
+
+    let targetUrl = result?.aiUrl || 'https://gemini.google.com';
+    const promptParam = encodeURIComponent(promptText);
     const lowerUrl = targetUrl.toLowerCase();
     
     if (lowerUrl.includes('gemini.google.com')) {
@@ -260,6 +377,11 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     setExecuting(true);
     setExecutionResult(null);
 
+    // If running a new top-level execution run, clear the chat messages history
+    if (!overridePrompt) {
+      setChatMessages([]);
+    }
+
     const isImage = typeof forceIsImage === 'boolean'
       ? forceIsImage
       : (result ? getAIById(result.selectedAI)?.category === 'Image Generation' : false) || /create an image|generate an image|draw a|make an image|paint a/i.test(task);
@@ -273,8 +395,39 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         title: isImage ? "Visual Synthesizer Deployed" : isVideo ? "Motion Synthesizer Deployed" : "Agent Deployed",
         description: isImage ? "Synthesizing image via secure API pipeline..." : isVideo ? "Synthesizing video via secure API pipeline..." : "Executing prompt via secure API pipeline..."
       });
-      const output = await executePromptViaApi(promptToRun, isImage, isVideo);
+      const output = await executePromptViaApi(
+        promptToRun, 
+        isImage, 
+        isVideo,
+        {
+          useOllama: settings.useOllama,
+          ollamaBaseUrl: settings.ollamaBaseUrl,
+          ollamaModel: settings.ollamaModel,
+          localEngine: settings.localEngine,
+          pythonServerUrl: settings.pythonServerUrl
+        }
+      );
       setExecutionResult(output);
+
+      // Append assistant message to chat
+      setChatMessages(prev => {
+        const messages = [...prev];
+        if (messages.length === 0) {
+          messages.push({
+            id: `user-initial-${Date.now()}`,
+            role: 'user',
+            content: promptToRun
+          });
+        }
+        messages.push({
+          id: `assistant-${Date.now()}`,
+          role: 'assistant',
+          content: output,
+          type: isImage ? 'image' : isVideo ? 'video' : 'text',
+          optimizedPrompt: promptToRun
+        });
+        return messages;
+      });
 
       // Update DB history record if logged in and we have a valid history ID
       const activeHistoryId = historyIdToUpdate || currentHistoryId;
@@ -289,6 +442,26 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       setExecutionResult(errorMsg);
+
+      // Append error message to chat
+      setChatMessages(prev => {
+        const messages = [...prev];
+        if (messages.length === 0) {
+          messages.push({
+            id: `user-initial-${Date.now()}`,
+            role: 'user',
+            content: promptToRun
+          });
+        }
+        messages.push({
+          id: `assistant-err-${Date.now()}`,
+          role: 'assistant',
+          content: `Execution failed. Error: ${errorMsg}`,
+          type: 'text',
+          optimizedPrompt: promptToRun
+        });
+        return messages;
+      });
 
       const activeHistoryId = historyIdToUpdate || currentHistoryId;
       if (activeHistoryId) {
@@ -305,7 +478,6 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     }
   };
 
-
   const copyOutputToClipboard = async () => {
     if (!executionResult) return;
     try {
@@ -319,12 +491,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     } catch (e) {}
   };
 
-  const downloadResult = () => {
-    if (!executionResult) return;
-    const isImage = executionResult.startsWith('data:image/');
+  const downloadMessageResult = (msg: ChatMessage) => {
+    const content = msg.content;
+    const isImage = msg.type === 'image';
     if (isImage) {
       const a = document.createElement('a');
-      a.href = executionResult;
+      a.href = content;
       a.download = `PromptPilot_Generated_Image.png`;
       document.body.appendChild(a);
       a.click();
@@ -335,10 +507,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       });
       return;
     }
-    const isVideo = executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4');
+    const isVideo = msg.type === 'video' || content.startsWith('data:video/') || content.endsWith('.mp4');
     if (isVideo) {
       const a = document.createElement('a');
-      a.href = executionResult;
+      a.href = content;
       a.download = `PromptPilot_Generated_Video.mp4`;
       document.body.appendChild(a);
       a.click();
@@ -349,7 +521,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       });
       return;
     }
-    const blob = new Blob([executionResult], { type: 'text/plain' });
+    const blob = new Blob([content], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -362,6 +534,85 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       title: "File Downloaded",
       description: "Tactical data saved to local drive."
     });
+  };
+
+  const downloadResult = () => {
+    if (!executionResult) return;
+    const blob = new Blob([executionResult], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `PromptPilot_Execution_Output.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleRegenerateMessage = async (msgId: string) => {
+    const index = chatMessages.findIndex(m => m.id === msgId);
+    if (index === -1) return;
+    const promptToRun = chatMessages[index].optimizedPrompt;
+    if (!promptToRun) return;
+
+    setExecuting(true);
+    try {
+      const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
+      const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
+      const output = await executePromptViaApi(
+        promptToRun, 
+        isImage, 
+        isVideo,
+        {
+          useOllama: settings.useOllama,
+          ollamaBaseUrl: settings.ollamaBaseUrl,
+          ollamaModel: settings.ollamaModel,
+          localEngine: settings.localEngine,
+          pythonServerUrl: settings.pythonServerUrl
+        }
+      );
+      
+      setChatMessages(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          content: output
+        };
+        return updated;
+      });
+
+      if (currentHistoryId) {
+        await updateMissionHistoryOutput(currentHistoryId, output);
+      }
+      toast({ title: "Regenerated", description: "Response successfully updated." });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Regeneration Failed",
+        description: err.message || "Could not regenerate response."
+      });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleUpdateMessageContent = (msgId: string, newText: string) => {
+    setChatMessages(prev => prev.map(m => m.id === msgId ? { ...m, content: newText } : m));
+    
+    // Sync with main execution result state if it's the latest assistant message
+    const assistantMessages = chatMessages.filter(m => m.role === 'assistant');
+    const latestMsg = assistantMessages[assistantMessages.length - 1];
+    if (latestMsg && latestMsg.id === msgId) {
+      setExecutionResult(newText);
+    }
+    
+    if (currentHistoryId) {
+      updateMissionHistoryOutput(currentHistoryId, newText).catch(console.error);
+    }
+  };
+
+  const togglePromptView = (msgId: string) => {
+    setViewedPromptId(prev => prev === msgId ? null : msgId);
   };
 
   return (
@@ -463,24 +714,50 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               </div>
             </div>
 
-            <Button 
-              size="lg" 
-              onClick={handleRoute} 
-              disabled={loading || !task.trim()}
-              className="w-full md:w-auto px-16 h-20 text-xl bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-2xl shadow-primary/40 transition-all hover:scale-[1.03] active:scale-95 font-black uppercase tracking-widest group"
-            >
-              {loading ? (
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-7 w-7 animate-spin" />
-                  <span>Syncing...</span>
+            <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
+              <div className="flex flex-col items-center sm:items-end gap-2 w-full sm:w-auto">
+                <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('useOllama', false)}
+                    className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!settings.useOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                  >
+                    Cloud AI
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateSetting('useOllama', true)}
+                    className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${settings.useOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                  >
+                    Local LLM
+                  </button>
                 </div>
-              ) : (
-                <div className="flex items-center gap-3">
-                  <Sparkles className="h-7 w-7 group-hover:rotate-12 transition-transform" />
-                  <span>Execute Mission</span>
+                <div className="text-[10px] font-black uppercase tracking-widest text-center sm:text-right text-white/40">
+                  Active: {settings.useOllama 
+                    ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) 
+                    : 'Cloud Routing Fleet'}
                 </div>
-              )}
-            </Button>
+              </div>
+
+              <Button 
+                size="lg" 
+                onClick={handleRoute} 
+                disabled={loading || !task.trim()}
+                className="w-full md:w-auto px-16 h-20 text-xl bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-2xl shadow-primary/40 transition-all hover:scale-[1.03] active:scale-95 font-black uppercase tracking-widest group"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                    <span>Syncing...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="h-7 w-7 group-hover:rotate-12 transition-transform" />
+                    <span>Execute Mission</span>
+                  </div>
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -571,137 +848,184 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 </Button>
               </div>
 
-              {(executing || executionResult) && (() => {
+              {(executing || chatMessages.some(m => m.role === 'assistant')) && (() => {
                 const aiConfig = result ? getAIById(result.selectedAI) : null;
                 const isImageTask = aiConfig?.category === 'Image Generation' || /create an image|generate an image|draw a|make an image|paint a/i.test(task);
                 const isVideoTask = aiConfig?.category === 'Video Generation' || /create a video|generate a video|make a video|render a video/i.test(task);
+                const assistantMessages = chatMessages.filter(m => m.role === 'assistant');
+
                 return (
-                  <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 animate-in zoom-in-95 duration-500 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
-                    {/* Decorative glowing gradient border top */}
-                    <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-                    
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
-                      <div className="flex items-center gap-3.5">
-                        <div className="bg-primary/10 p-2.5 rounded-2xl border border-primary/20 shadow-inner">
-                          <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-white tracking-tight">AI Assistant Response</span>
-                            <Badge variant="outline" className={`${executing ? "border-primary/40 text-primary bg-primary/5 animate-pulse" : "border-emerald-500/40 text-emerald-400 bg-emerald-500/5"} text-[9px] font-black uppercase px-2 py-0`}>
-                              {executing ? "Thinking..." : "Ready"}
-                            </Badge>
-                          </div>
-                          <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest block mt-0.5">
-                            {executionResult && executionResult.startsWith('data:image/') 
-                              ? "Powered by FLUX.1 [schnell]" 
-                              : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4'))
-                              ? `Powered by ${result?.selectedAI || "Stable Video Diffusion"}`
-                              : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
-                          </span>
-                        </div>
-                      </div>
+                  <div className="space-y-8 w-full animate-in fade-in duration-500">
+                    {/* Render completed responses */}
+                    {assistantMessages.map((msg, index) => {
+                      const isMsgImage = msg.type === 'image';
+                      const isMsgVideo = msg.type === 'video' || msg.content.startsWith('data:video/') || msg.content.endsWith('.mp4');
 
-                      {!executing && executionResult && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          {executionResult && !executionResult.startsWith('data:image/') && !(executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) && (
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              onClick={copyOutputToClipboard}
-                              className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
-                            >
-                              {outputCopied ? (
-                                <><Check className="mr-1.5 h-3.5 w-3.5 text-emerald-500" /> Copied</>
-                              ) : (
-                                <><Copy className="mr-1.5 h-3.5 w-3.5" /> Copy</>
+                      return (
+                        <div 
+                          key={msg.id} 
+                          className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)]"
+                        >
+                          {/* Decorative glowing gradient border top */}
+                          <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+                          
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
+                            <div className="flex items-center gap-3.5">
+                              <div className="bg-primary/10 p-2.5 rounded-2xl border border-primary/20 shadow-inner">
+                                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-bold text-white tracking-tight">AI Assistant Response</span>
+                                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/5 text-[9px] font-black uppercase px-2 py-0">
+                                    Ready
+                                  </Badge>
+                                </div>
+                                <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest block mt-0.5">
+                                  {isMsgImage 
+                                    ? "Powered by FLUX.1 [schnell]" 
+                                    : isMsgVideo
+                                    ? `Powered by ${result?.selectedAI || "Stable Video Diffusion"}`
+                                    : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
+                                  {assistantMessages.length > 1 && ` • Turn ${index + 1}`}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              {!isMsgImage && !isMsgVideo && (
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(msg.content);
+                                    toast({ title: "Copied", description: "Response copied to clipboard" });
+                                  }}
+                                  className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                                >
+                                  <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
+                                </Button>
                               )}
-                            </Button>
-                          )}
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={downloadResult}
-                            className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
-                          >
-                            <FileText className="mr-1.5 h-3.5 w-3.5" /> {executionResult && executionResult.startsWith('data:image/') ? "Download Image" : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) ? "Download Video" : "Download"}
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="ghost" 
-                            onClick={() => {
-                              const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
-                              const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
-                              handleAutoExecute(undefined, isImage, isVideo);
-                            }}
-                            className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
-                          >
-                            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Regenerate
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => downloadMessageResult(msg)}
+                                className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                              >
+                                <FileText className="mr-1.5 h-3.5 w-3.5" /> {isMsgImage ? "Download Image" : isMsgVideo ? "Download Video" : "Download"}
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => handleRegenerateMessage(msg.id)}
+                                disabled={executing}
+                                className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                              >
+                                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${executing ? 'animate-spin' : ''}`} /> Regenerate
+                              </Button>
+                            </div>
+                          </div>
 
-                    {executing && !executionResult ? (
-                      <div className="bg-black/40 border border-white/5 rounded-3xl p-10 flex flex-col items-center justify-center min-h-[220px] text-center space-y-4 shadow-inner">
-                        <div className="relative">
-                          <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl scale-125 animate-pulse" />
-                          <div className="relative h-12 w-12 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center">
+                          {isMsgImage ? (
+                            <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
+                              <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
+                              <div className="relative max-w-lg w-full aspect-square rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/img-view">
+                                <img 
+                                  src={msg.content} 
+                                  alt="AI Generated Output" 
+                                  className="w-full h-full object-cover animate-in fade-in zoom-in duration-500 hover:scale-[1.02] transition-transform" 
+                                />
+                              </div>
+                            </div>
+                          ) : isMsgVideo ? (
+                            <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
+                              <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
+                              <div className="relative max-w-lg w-full aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/video-view">
+                                <video 
+                                  src={msg.content} 
+                                  controls 
+                                  autoPlay 
+                                  loop 
+                                  playsInline
+                                  className="w-full h-full object-cover animate-in fade-in zoom-in duration-500" 
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <HumanizerEditor 
+                              initialText={msg.content} 
+                              onTextUpdate={(newText) => handleUpdateMessageContent(msg.id, newText)} 
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Render active loading state */}
+                    {executing && (
+                      <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 animate-in zoom-in-95 duration-500 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
+                        <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+                        <div className="flex items-center gap-3.5 border-b border-white/5 pb-6">
+                          <div className="bg-primary/10 p-2.5 rounded-2xl border border-primary/20 shadow-inner">
                             <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                           </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-white text-base font-bold tracking-tight">
-                            {isImageTask ? "AI is synthesizing image..." : isVideoTask ? "AI is rendering video..." : "AI is generating response..."}
-                          </div>
-                          <div className="text-xs text-white/40 font-medium">
-                            {isImageTask 
-                              ? "Rendering high-fidelity pixels with target model configurations." 
-                              : isVideoTask
-                              ? "Compiling frames and motion dynamics with target model configurations."
-                              : "Processing your instructions with target model configurations."}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white tracking-tight">AI Assistant Response</span>
+                              <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 animate-pulse text-[9px] font-black uppercase px-2 py-0">
+                                Thinking...
+                              </Badge>
+                            </div>
                           </div>
                         </div>
-                        {/* Typing indicator dots */}
-                        <div className="flex gap-1.5 pt-2">
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
-                          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce" />
+                        <div className="bg-black/40 border border-white/5 rounded-3xl p-10 flex flex-col items-center justify-center min-h-[220px] text-center space-y-4 shadow-inner">
+                          <div className="relative">
+                            <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl scale-125 animate-pulse" />
+                            <div className="relative h-12 w-12 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center">
+                              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-white text-base font-bold tracking-tight">
+                              {isImageTask ? "AI is synthesizing image..." : isVideoTask ? "AI is rendering video..." : "AI is generating response..."}
+                            </div>
+                            <div className="text-xs text-white/40 font-medium">
+                              {isImageTask 
+                                ? "Rendering high-fidelity pixels with target model configurations." 
+                                : isVideoTask
+                                ? "Compiling frames and motion dynamics with target model configurations."
+                                : "Processing your instructions with target model configurations."}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      executionResult && executionResult.startsWith('data:image/') ? (
-                        <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
-                          <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
-                          <div className="relative max-w-lg w-full aspect-square rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/img-view">
-                            <img 
-                              src={executionResult} 
-                              alt="AI Generated Output" 
-                              className="w-full h-full object-cover animate-in fade-in zoom-in duration-500 hover:scale-[1.02] transition-transform" 
-                            />
-                          </div>
+                    )}
+
+                    {/* Chat Input Console below the list of response boxes */}
+                    {!executing && assistantMessages.length > 0 && (
+                      <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-4 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
+                        <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+                        <Textarea
+                          placeholder="Type here to ask AI for the next task or refinement..."
+                          value={refineInput}
+                          onChange={(e) => setRefineInput(e.target.value)}
+                          className="min-h-[70px] max-h-[140px] text-base rounded-2xl bg-black/40 border-white/10 text-white p-4 focus-visible:ring-primary/40 shadow-inner resize-none leading-relaxed"
+                          style={{ color: 'white', WebkitTextFillColor: 'white' }}
+                        />
+                        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 w-full">
+                          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest text-center sm:text-left">
+                            Ask AI for the next task or instruction
+                          </span>
+                          <Button
+                            onClick={() => handleRefineWithInput(false)}
+                            disabled={!refineInput.trim() || loading}
+                            className="h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-wider transition-all shadow-md w-full sm:w-auto flex justify-center items-center"
+                          >
+                            <Zap className="mr-2 h-4 w-4" />
+                            Execute
+                          </Button>
                         </div>
-                      ) : executionResult && (executionResult.startsWith('data:video/') || executionResult.endsWith('.mp4')) ? (
-                        <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
-                          <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
-                          <div className="relative max-w-lg w-full aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/video-view">
-                            <video 
-                              src={executionResult} 
-                              controls 
-                              autoPlay 
-                              loop 
-                              playsInline
-                              className="w-full h-full object-cover animate-in fade-in zoom-in duration-500" 
-                            />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-black/60 text-white/90 border border-white/10 rounded-3xl p-8 md:p-10 font-sans text-base leading-relaxed whitespace-pre-wrap shadow-inner max-h-[600px] overflow-y-auto relative group/output-content">
-                          <div className="prose prose-invert max-w-none text-white/90 font-medium leading-loose">
-                            {executionResult}
-                          </div>
-                        </div>
-                      )
+                      </div>
                     )}
                   </div>
                 );

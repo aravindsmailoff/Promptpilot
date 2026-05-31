@@ -1,6 +1,8 @@
 'use server';
 
 import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
+import { executeOllamaChat } from '@/ai/ollama';
+import { executePythonChat } from '@/ai/python-server';
 
 export async function executeImageGeneration(prompt: string): Promise<string> {
   // We try FLUX.1-schnell first. If it fails, we fall back to Stable Diffusion XL.
@@ -112,15 +114,60 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
   return "https://vjs.zencdn.net/v/oceans.mp4";
 }
 
-export async function executePromptViaApi(prompt: string, isImage?: boolean, isVideo?: boolean): Promise<string> {
+export async function executePromptViaApi(
+  prompt: string, 
+  isImage?: boolean, 
+  isVideo?: boolean,
+  settings?: {
+    useOllama?: boolean;
+    ollamaBaseUrl?: string;
+    ollamaModel?: string;
+    localEngine?: 'ollama' | 'python';
+    pythonServerUrl?: string;
+  }
+): Promise<string> {
+  const systemMessage = "You are a professional assistant. Neatly structure your output using clean headings, sections, bold text for key terms, and standard lists. Provide a highly organized, professional document with clear structure and clean spacing.";
+
+  if (settings?.useOllama) {
+    let text = '';
+    if (settings.localEngine === 'python') {
+      const activeUrl = settings.pythonServerUrl || 'http://127.0.0.1:8000';
+      console.log(`[PromptPilot] Executing prompt using local Python Server: ${activeUrl}`);
+      text = await executePythonChat(
+        activeUrl,
+        [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt }
+        ],
+        0.7
+      );
+    } else {
+      const activeModel = settings.ollamaModel || 'gemma2:2b';
+      const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      console.log(`[PromptPilot] Executing prompt using local Ollama model: ${activeModel}`);
+      
+      text = await executeOllamaChat(
+        activeUrl,
+        activeModel,
+        [
+          { role: "system", content: systemMessage },
+          { role: "user", content: prompt }
+        ],
+        0.7
+      );
+    }
+
+    // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
+    text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
+    return text;
+  }
+
   if (isImage) {
     return executeImageGeneration(prompt);
   }
   if (isVideo) {
     return executeVideoGeneration(prompt);
   }
-
-  const systemMessage = "You are a professional assistant. Neatly structure your output using clean spacing, line breaks, capital headers, and standard lists. Do NOT use markdown bold tags like '**' or markdown italic tags like '*' for formatting text headers or emphasis. Ensure all formatting is achieved using standard capitalization, spacing, and indentations without raw markdown symbols.";
 
   let lastError: any = null;
 
@@ -141,8 +188,8 @@ export async function executePromptViaApi(prompt: string, isImage?: boolean, isV
         throw new Error(`Hugging Face model ${model} returned an empty response.`);
       }
 
-      // Clean up any raw double-asterisk bold tags if they slip through
-      text = text.replace(/\*\*/g, '');
+      // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
+      text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
 
       return text;
     } catch (error: any) {

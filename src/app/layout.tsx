@@ -25,6 +25,7 @@ export const viewport: Viewport = {
 };
 
 import { SessionProvider } from '@/components/providers/SessionProvider';
+import { SettingsProvider } from '@/components/providers/SettingsProvider';
 
 export default function RootLayout({
   children,
@@ -41,7 +42,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground selection:bg-accent/30 overflow-x-hidden">
         <SessionProvider>
-          {children}
+          <SettingsProvider>
+            {children}
+          </SettingsProvider>
         </SessionProvider>
       </body>
     </html>

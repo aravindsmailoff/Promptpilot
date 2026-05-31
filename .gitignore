@@ -46,3 +46,13 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+
+# local database and caches
+contextpilot.db
+temp.safetensors
+baileys_auth_info/
+__pycache__/
+*.pyc
+promptpilot-settings.json
+whatsapp-config.json
+

@@ -2,10 +2,19 @@
 
 import { z } from 'zod';
 import { hfClient, ROUTING_MODELS } from '@/ai/huggingface';
+import { executeOllamaChat } from '@/ai/ollama';
+import { executePythonChat } from '@/ai/python-server';
 
 const RefinePromptInputSchema = z.object({
   previousPrompt: z.string().describe('The previous prompt that was generated or used.'),
   feedback: z.string().describe('User feedback indicating what went wrong or what needs to be improved.'),
+  settings: z.object({
+    useOllama: z.boolean().optional(),
+    ollamaBaseUrl: z.string().optional(),
+    ollamaModel: z.string().optional(),
+    localEngine: z.enum(['ollama', 'python']).optional(),
+    pythonServerUrl: z.string().optional(),
+  }).optional(),
 });
 export type RefinePromptInput = z.infer<typeof RefinePromptInputSchema>;
 
@@ -25,6 +34,75 @@ The output JSON structure MUST contain exactly this key:
 
   const userText = `Previous Prompt: """${input.previousPrompt}"""
 User Feedback for refinement: """${input.feedback}"""`;
+
+  if (input.settings?.useOllama) {
+    try {
+      let response = '';
+
+      if (input.settings.localEngine === 'python') {
+        const activeUrl = input.settings.pythonServerUrl || 'http://127.0.0.1:8000';
+        console.log(`[PromptPilot] Refining prompt using local Python Server: ${activeUrl}`);
+        
+        response = await executePythonChat(
+          activeUrl,
+          [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText }
+          ],
+          0.2
+        );
+      } else {
+        const activeModel = input.settings.ollamaModel || 'gemma2:2b';
+        const activeUrl = input.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+        console.log(`[PromptPilot] Refining prompt using local Ollama model: ${activeModel}`);
+
+        response = await executeOllamaChat(
+          activeUrl,
+          activeModel,
+          [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText }
+          ],
+          0.2,
+          { type: 'json_object' }
+        );
+      }
+
+      console.log("[PromptPilot] Ollama raw refinement response:", response);
+
+      // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
+      response = response.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
+
+      let cleaned = response.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '').trim();
+      }
+
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(cleaned);
+      } catch (e) {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) {
+          try {
+            parsedJson = JSON.parse(match[0]);
+          } catch (innerE) {
+            throw new Error(`Could not parse inner JSON: ${match[0]}`);
+          }
+        } else {
+          throw new Error(`Could not parse JSON response: ${cleaned}`);
+        }
+      }
+
+      const parsedOutput = RefinePromptOutputSchema.parse(parsedJson);
+      console.log("[PromptPilot] Ollama refinement success:", parsedOutput);
+      return parsedOutput;
+
+    } catch (error: any) {
+      console.error(`[PromptPilot] Ollama refinement error:`, error);
+      throw error;
+    }
+  }
 
   let lastError: any = null;
 
@@ -50,8 +128,30 @@ User Feedback for refinement: """${input.feedback}"""`;
 
       console.log("[PromptPilot] Refinement raw response content:", content);
       
+      // Clean up markdown block wraps if present
+      let cleaned = content.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '').trim();
+      }
+
+      let parsedJson;
+      try {
+        parsedJson = JSON.parse(cleaned);
+      } catch (e) {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) {
+          try {
+            parsedJson = JSON.parse(match[0]);
+          } catch (innerE) {
+            throw new Error(`Could not parse inner JSON: ${match[0]}`);
+          }
+        } else {
+          throw new Error(`Could not parse JSON response: ${cleaned}`);
+        }
+      }
+
       // Parse and validate the response
-      const parsedOutput = RefinePromptOutputSchema.parse(JSON.parse(content));
+      const parsedOutput = RefinePromptOutputSchema.parse(parsedJson);
       console.log("[PromptPilot] Refinement success:", parsedOutput);
       return parsedOutput;
 

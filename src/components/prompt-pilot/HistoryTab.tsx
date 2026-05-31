@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { getMissionHistory, deleteMissionHistory } from '@/lib/actions/history';
 import { formatDistanceToNow } from 'date-fns';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface HistoryItem {
   id: string;
@@ -302,8 +303,8 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
                               />
                             </div>
                           ) : (
-                            <div className="text-white/80 font-mono whitespace-pre-wrap">
-                              {item.executionOutput}
+                            <div className="text-white/80 font-sans leading-relaxed">
+                              <MarkdownRenderer content={item.executionOutput} />
                             </div>
                           )}
                         </div>

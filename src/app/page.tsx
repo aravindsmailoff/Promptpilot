@@ -6,8 +6,9 @@ import { HomeTab } from '@/components/prompt-pilot/HomeTab';
 import { DirectoryTab } from '@/components/prompt-pilot/DirectoryTab';
 import { SettingsTab } from '@/components/prompt-pilot/SettingsTab';
 import { HistoryTab } from '@/components/prompt-pilot/HistoryTab';
+import { ContextPilotTab } from '@/components/contextpilot/ContextPilotTab';
 import { Toaster } from '@/components/ui/toaster';
-import { Home as HomeIcon, LayoutGrid, Settings, History } from 'lucide-react';
+import { Home as HomeIcon, LayoutGrid, Settings, History, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
@@ -49,6 +50,11 @@ export default function Home() {
                   History
                 </TabsTrigger>
 
+                <TabsTrigger value="context" className="rounded-full px-8 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
+                  <Brain className="h-4 w-4" />
+                  ContextPilot
+                </TabsTrigger>
+
                 <TabsTrigger value="directory" className="rounded-full px-8 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <LayoutGrid className="h-4 w-4" />
                   Fleet
@@ -79,6 +85,10 @@ export default function Home() {
             <HistoryTab onRelaunch={handleRelaunch} />
           </TabsContent>
 
+          <TabsContent value="context" className="mt-0 outline-none">
+            <ContextPilotTab />
+          </TabsContent>
+
           <TabsContent value="directory" className="mt-0 outline-none">
             <DirectoryTab />
           </TabsContent>
@@ -94,6 +104,7 @@ export default function Home() {
         {[
           { id: 'home', icon: HomeIcon, label: 'Home' },
           { id: 'history', icon: History, label: 'History' },
+          { id: 'context', icon: Brain, label: 'Context' },
           { id: 'directory', icon: LayoutGrid, label: 'Fleet' },
           { id: 'settings', icon: Settings, label: 'Settings' },
         ].map((item) => (

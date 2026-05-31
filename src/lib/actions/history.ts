@@ -109,3 +109,25 @@ export async function updateMissionHistoryOutput(id: string, executionOutput: st
   }
 }
 
+/**
+ * Update the optimized prompt of an existing mission history record.
+ */
+export async function updateMissionHistoryPrompt(id: string, optimizedPrompt: string): Promise<boolean> {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || !(session.user as any).id) return false;
+
+    const userId = (session.user as any).id as string;
+
+    await prisma.missionHistory.updateMany({
+      where: { id, userId },
+      data: { optimizedPrompt },
+    });
+
+    return true;
+  } catch (err) {
+    console.error('[updateMissionHistoryPrompt] DB error:', err);
+    return false;
+  }
+}
+

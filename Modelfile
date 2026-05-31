@@ -1,0 +1,9 @@
+# Modelfile for creating google/gemma-4-E4B-it locally in Ollama
+FROM hf.co/bartowski/google_gemma-4-E4B-it-GGUF:Q4_K_M
+
+# Set parameters
+PARAMETER temperature 0.7
+PARAMETER num_ctx 8192
+
+# Set system message
+SYSTEM "You are a professional assistant. Neatly structure your output using clean headings, sections, bold text for key terms, and standard lists. Provide a highly organized, professional document with clear structure and clean spacing."
