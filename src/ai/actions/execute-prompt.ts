@@ -114,9 +114,26 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
   return "https://vjs.zencdn.net/v/oceans.mp4";
 }
 
+const RESEARCH_SYSTEM_PROMPT = `You are PromptPilot Research AI — an advanced research engine, not a chatbot.
+
+Your role: Synthesize live web research into comprehensive, authoritative reports.
+
+OUTPUT RULES (follow strictly):
+1. Use ## headings and ### sub-headings to structure every response
+2. Use **bold** for key terms, findings, and important data points
+3. Use bullet points for lists, numbered lists for steps/rankings
+4. When live research data is provided above, cite sources inline: e.g., "According to [Source Name]..."
+5. End every response with a "## Sources" section listing all URLs consulted
+6. If no live data was fetched, clearly state "Based on training knowledge as of [your cutoff]:"
+7. Flag contradictions or gaps: "⚠ Note: Sources conflict on this point..."
+8. Provide a "## Key Takeaways" section with 3–5 actionable bullet points at the end
+
+You are NOT a casual assistant. You deliver RESEARCH-GRADE outputs with depth, structure, and citations.
+Move fast, cite everything, leave no question half-answered.`;
+
 export async function executePromptViaApi(
-  prompt: string, 
-  isImage?: boolean, 
+  prompt: string,
+  isImage?: boolean,
   isVideo?: boolean,
   settings?: {
     useOllama?: boolean;
@@ -126,77 +143,112 @@ export async function executePromptViaApi(
     pythonServerUrl?: string;
   }
 ): Promise<string> {
-  const systemMessage = "You are a professional assistant. Neatly structure your output using clean headings, sections, bold text for key terms, and standard lists. Provide a highly organized, professional document with clear structure and clean spacing.";
 
-  if (settings?.useOllama) {
-    let text = '';
-    if (settings.localEngine === 'python') {
-      const activeUrl = settings.pythonServerUrl || 'http://127.0.0.1:8000';
-      console.log(`[PromptPilot] Executing prompt using local Python Server: ${activeUrl}`);
+  // ── IMAGE / VIDEO paths (remain as is) ────────────────
+  if (isImage) return executeImageGeneration(prompt);
+  if (isVideo) return executeVideoGeneration(prompt);
+
+  // ── TEXT GENERATION path (OLLAMA / LOCAL ONLY) ──────────────────────────────
+  if (!settings?.useOllama) {
+    const systemMessage = "You are a professional assistant. Neatly structure your output using clean headings, sections, bold text for key terms, and standard lists. Provide a highly organized, professional document with clear structure and clean spacing.";
+    let lastError: any = null;
+
+    for (const model of ROUTING_MODELS) {
+      try {
+        console.log(`[HuggingFace Cloud Execution] Sending prompt using model: ${model}`);
+        const response = await hfClient.chat.completions.create({
+          model: model,
+          messages: [
+            { role: "system", content: systemMessage },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.7
+        });
+
+        let text = response.choices[0]?.message?.content;
+        if (!text) {
+          throw new Error(`Hugging Face model ${model} returned an empty response.`);
+        }
+
+        // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
+        text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
+
+        return text;
+      } catch (error: any) {
+        console.error(`[HuggingFace Execution Error] Model ${model} failed:`, error);
+        lastError = error;
+      }
+    }
+
+    throw new Error(`Cloud Execution Failed: ${lastError?.message || lastError}`);
+  }
+
+  // Fetch live web data before calling local synthesis
+  let enrichedPrompt = prompt;
+  let sourcesFooter = '';
+
+  try {
+    const { conductResearch, buildResearchPrompt } = await import('@/ai/research');
+    console.log('[PromptPilot Research AI] Conducting live web research...');
+    const research = await conductResearch(prompt);
+
+    if (research.sources.length > 0) {
+      enrichedPrompt = await buildResearchPrompt(prompt, research);
+      sourcesFooter = research.sources
+        .map((s, i) => `${i + 1}. [${s.title}](${s.url})`)
+        .join('\n');
+      console.log(`[PromptPilot Research AI] Research complete. ${research.sources.length} sources injected.`);
+    } else {
+      console.log('[PromptPilot Research AI] No live sources found — using training knowledge.');
+    }
+  } catch (researchErr) {
+    console.warn('[PromptPilot Research AI] Research phase failed, proceeding with raw prompt:', researchErr);
+  }
+
+  // ── SYNTHESIS PHASE ─────────────────────────────
+  // Send enriched prompt to Ollama / local engine for synthesis
+  let text = '';
+  const localEngine = settings?.localEngine || 'ollama';
+
+  try {
+    if (localEngine === 'python') {
+      const activeUrl = settings?.pythonServerUrl || 'http://127.0.0.1:8000';
+      console.log(`[PromptPilot Research AI] Synthesizing via Python Server: ${activeUrl}`);
       text = await executePythonChat(
         activeUrl,
         [
-          { role: "system", content: systemMessage },
-          { role: "user", content: prompt }
+          { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
+          { role: 'user', content: enrichedPrompt },
         ],
-        0.7
+        0.4
       );
     } else {
-      const activeModel = settings.ollamaModel || 'gemma2:2b';
-      const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-      console.log(`[PromptPilot] Executing prompt using local Ollama model: ${activeModel}`);
-      
+      const activeModel = settings?.ollamaModel || 'gemma2:2b';
+      const activeUrl = settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      console.log(`[PromptPilot Research AI] Synthesizing via Ollama model: ${activeModel}`);
+
       text = await executeOllamaChat(
         activeUrl,
         activeModel,
         [
-          { role: "system", content: systemMessage },
-          { role: "user", content: prompt }
+          { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
+          { role: 'user', content: enrichedPrompt },
         ],
-        0.7
+        0.4
       );
     }
-
-    // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
-    text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
-    return text;
+  } catch (err: any) {
+    console.error('[PromptPilot Server Action Error]:', err);
+    return `Error: ${err.message || err}`;
   }
 
-  if (isImage) {
-    return executeImageGeneration(prompt);
-  }
-  if (isVideo) {
-    return executeVideoGeneration(prompt);
-  }
+  // Strip think/thought tags
+  text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
 
-  let lastError: any = null;
-
-  for (const model of ROUTING_MODELS) {
-    try {
-      console.log(`[HuggingFace Execution] Sending prompt using model: ${model}`);
-      const response = await hfClient.chat.completions.create({
-        model: model,
-        messages: [
-          { role: "system", content: systemMessage },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7
-      });
-
-      let text = response.choices[0]?.message?.content;
-      if (!text) {
-        throw new Error(`Hugging Face model ${model} returned an empty response.`);
-      }
-
-      // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
-      text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
-
-      return text;
-    } catch (error: any) {
-      console.error(`[HuggingFace Execution Error] Model ${model} failed:`, error);
-      lastError = error;
-    }
+  // Append sources footer if not already in output and we have sources
+  if (sourcesFooter && !text.includes('## Sources')) {
+    text += `\n\n## Sources\n${sourcesFooter}`;
   }
 
-  throw new Error(`Execution Failed: ${lastError?.message || lastError}`);
+  return text;
 }

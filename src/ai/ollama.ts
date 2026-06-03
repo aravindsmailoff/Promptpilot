@@ -25,9 +25,13 @@ export async function executeOllamaChat(
         temperature,
         response_format: responseFormat,
         stream: false,
+        options: {
+          num_ctx: 1536, // Limit context window to 1536 to save VRAM on tight GPUs like RTX 3050
+          num_predict: 400, // Limit output generation to 400 tokens for swift (under 3s) GPU inference
+        }
       }),
-      // 60 seconds timeout to prevent hanging on slower machines during local inference
-      signal: AbortSignal.timeout(60000),
+      // 300 seconds timeout to support slower machines during local inference
+      signal: AbortSignal.timeout(300000),
     });
 
     if (!response.ok) {
@@ -86,7 +90,7 @@ export async function executeOllamaChat(
 
     if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
       throw new Error(
-        `Ollama request timed out after 60 seconds. Running models locally requires substantial CPU/GPU resources. Please make sure your system has enough free RAM and that '${ollamaModel}' isn't overloaded.`
+        `Ollama request timed out after 300 seconds. Running models locally requires substantial CPU/GPU resources. Please make sure your system has enough free RAM and that '${ollamaModel}' isn't overloaded.`
       );
     }
 

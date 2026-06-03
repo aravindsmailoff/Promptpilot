@@ -38,6 +38,8 @@ import { parseOfficeFileAction } from '@/lib/actions/parse-file';
 import { useSession } from 'next-auth/react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { HumanizerEditor } from './HumanizerEditor';
+import { CoFounderTab } from './CoFounderTab';
+import { Rocket } from 'lucide-react';
 
 interface ChatMessage {
   id: string;
@@ -88,6 +90,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [fileText, setFileText] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+
+  // Segmented view mode selection
+  const [mode, setMode] = useState<'rd' | 'startup'>('rd');
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -168,12 +173,16 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         }
       });
       
+      if (output.error) {
+        throw new Error(output.error);
+      }
+      
       setResult({ ...output, refinements: 0 });
       setChatMessages([]);
       
       toast({
         title: "Autonomous Routing Complete",
-        description: `Mission assigned to ${output.selectedAI}`
+        description: `Mission assigned to ${settings.useOllama ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) : output.selectedAI}`
       });
 
       // Save mission to DB if logged in
@@ -183,8 +192,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       if (session) {
         savedId = await saveMissionHistory({
           taskDescription: task,
-          selectedAI: output.selectedAI,
-          aiUrl: output.aiUrl,
+          selectedAI: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+            : output.selectedAI,
+          aiUrl: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
+            : output.aiUrl,
           reasoning: output.reasoning,
           optimizedPrompt: output.optimizedPrompt,
           isImageTask: isImage || isVideo
@@ -196,12 +209,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
       // Auto-deploy execution agent
       handleAutoExecute(output.optimizedPrompt, isImage, isVideo, savedId);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Routing Error:", err);
       toast({
         variant: "destructive",
         title: "Routing Error",
-        description: "Orchestrator encountered a sync issue."
+        description: err.message || "Orchestrator encountered a sync issue."
       });
     } finally {
       setLoading(false);
@@ -224,6 +237,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         }
       });
       
+      if (output.error) {
+        throw new Error(output.error);
+      }
+      
       const newRefinements = (result.refinements || 0) + 1;
       setResult({ ...result, optimizedPrompt: output.refinedPrompt, refinements: newRefinements });
       
@@ -244,8 +261,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         } else {
           savedId = await saveMissionHistory({
             taskDescription: task,
-            selectedAI: result.selectedAI,
-            aiUrl: result.aiUrl,
+            selectedAI: settings.useOllama && !isImage && !isVideo
+              ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+              : result.selectedAI,
+            aiUrl: settings.useOllama && !isImage && !isVideo
+              ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
+              : result.aiUrl,
             reasoning: result.reasoning,
             optimizedPrompt: output.refinedPrompt,
             isImageTask: isImage || isVideo
@@ -258,11 +279,11 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
       // Auto-deploy execution agent with refined prompt
       handleAutoExecute(output.refinedPrompt, isImage, isVideo, savedId);
-    } catch (err) {
+    } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Refinement Error",
-        description: "Failed to inject new parameters."
+        description: err.message || "Failed to inject new parameters."
       });
     } finally {
       setLoading(false);
@@ -301,6 +322,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         }
       });
       
+      if (output.error) {
+        throw new Error(output.error);
+      }
+      
       setResult({ ...output, refinements: 0 });
       
       let savedId: string | null = null;
@@ -309,8 +334,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       if (session) {
         savedId = await saveMissionHistory({
           taskDescription: inputFeedback,
-          selectedAI: output.selectedAI,
-          aiUrl: output.aiUrl,
+          selectedAI: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+            : output.selectedAI,
+          aiUrl: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
+            : output.aiUrl,
           reasoning: output.reasoning,
           optimizedPrompt: output.optimizedPrompt,
           isImageTask: isImage || isVideo
@@ -617,7 +646,31 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-1000 pb-20">
-      <div className="text-center space-y-4">
+      {/* Segmented Mode Switcher */}
+      <div className="flex justify-center mt-4">
+        <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md shadow-lg shadow-black/20">
+          <button
+            type="button"
+            onClick={() => setMode('rd')}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'rd' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+          >
+            <Cpu className="h-4 w-4" />
+            R&D Mode
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('startup')}
+            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'startup' ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+          >
+            <Rocket className="h-4 w-4" />
+            Startup Co-Founder
+          </button>
+        </div>
+      </div>
+
+      {mode === 'rd' ? (
+        <>
+          <div className="text-center space-y-4">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest mb-4 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
           <Sparkles className="h-3 w-3 animate-pulse" />
           Neural Orchestration Engine
@@ -714,50 +767,46 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-6 w-full md:w-auto">
-              <div className="flex flex-col items-center sm:items-end gap-2 w-full sm:w-auto">
-                <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => updateSetting('useOllama', false)}
-                    className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!settings.useOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-                  >
-                    Cloud AI
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => updateSetting('useOllama', true)}
-                    className={`flex-1 sm:flex-none px-6 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${settings.useOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-                  >
-                    Local LLM
-                  </button>
-                </div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-center sm:text-right text-white/40">
-                  Active: {settings.useOllama 
-                    ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) 
-                    : 'Cloud Routing Fleet'}
-                </div>
-              </div>
-
-              <Button 
-                size="lg" 
-                onClick={handleRoute} 
-                disabled={loading || !task.trim()}
-                className="w-full md:w-auto px-16 h-20 text-xl bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-2xl shadow-primary/40 transition-all hover:scale-[1.03] active:scale-95 font-black uppercase tracking-widest group"
+            <div className="relative flex bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner w-full sm:w-auto h-14 items-center">
+              <button
+                type="button"
+                onClick={() => updateSetting('useOllama', false)}
+                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!settings.useOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
               >
-                {loading ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-7 w-7 animate-spin" />
-                    <span>Syncing...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <Sparkles className="h-7 w-7 group-hover:rotate-12 transition-transform" />
-                    <span>Execute Mission</span>
-                  </div>
-                )}
-              </Button>
+                Cloud AI
+              </button>
+              <button
+                type="button"
+                onClick={() => updateSetting('useOllama', true)}
+                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${settings.useOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+              >
+                Local LLM
+              </button>
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest text-white/40 whitespace-nowrap">
+                Active: {settings.useOllama 
+                  ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) 
+                  : 'Cloud Routing Fleet'}
+              </div>
             </div>
+
+            <Button 
+              size="lg" 
+              onClick={handleRoute} 
+              disabled={loading || !task.trim()}
+              className="w-full md:w-auto px-12 h-14 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-2xl shadow-primary/40 transition-all hover:scale-[1.03] active:scale-95 font-black uppercase tracking-widest group"
+            >
+              {loading ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span>Syncing...</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Sparkles className="h-5 w-5 group-hover:rotate-12 transition-transform" />
+                  <span>Execute Mission</span>
+                </div>
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -770,7 +819,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 <div className="space-y-6">
                   <div className="flex flex-wrap items-center gap-5">
                     <Badge className="bg-primary text-primary-foreground text-xs px-6 py-2 rounded-full font-black uppercase tracking-widest shadow-xl">
-                      Fleet Core: {result.selectedAI}
+                      Fleet Core: {settings.useOllama 
+                        ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+                        : result.selectedAI}
                     </Badge>
                     <div className="flex items-center gap-2 px-4 py-1.5 bg-accent/10 border border-accent/20 rounded-full">
                       <Activity className="h-3 w-3 text-accent" />
@@ -886,6 +937,8 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                     ? "Powered by FLUX.1 [schnell]" 
                                     : isMsgVideo
                                     ? `Powered by ${result?.selectedAI || "Stable Video Diffusion"}`
+                                    : settings.useOllama
+                                    ? (settings.localEngine === 'python' ? 'Powered by Local Python Server' : `Powered by Ollama (${settings.ollamaModel})`)
                                     : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
                                   {assistantMessages.length > 1 && ` • Turn ${index + 1}`}
                                 </span>
@@ -1055,6 +1108,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
             </CardContent>
           </Card>
         </div>
+      )}
+        </>
+      ) : (
+        <CoFounderTab />
       )}
     </div>
   );

@@ -18,7 +18,8 @@ import {
   Search, Upload, Trash2, RefreshCw, Zap, MessageSquare,
   Mail, Globe, Video, FileText, Database, Activity,
   ChevronRight, Copy, CheckCheck, AlertTriangle, Loader2,
-  Sparkles, Brain, Shield, Clock, ChevronDown, ChevronUp, FileEdit, Send
+  Sparkles, Brain, Shield, Clock, ChevronDown, ChevronUp, FileEdit, Send,
+  Users, Code, PlusCircle
 } from 'lucide-react';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { executePromptViaApi } from '@/ai/actions/execute-prompt';
@@ -65,6 +66,276 @@ export function ContextPilotTab() {
   const { data: session } = useSession();
   const { settings } = useSettings();
 
+  // ─── Chatbot Startup Bots States ─────────────────────────────────────────────
+  interface StartupBot {
+    id: string;
+    name: string;
+    role: string;
+    description: string;
+    systemPrompt: string;
+    icon: string;
+    color: string;
+    products?: Array<{ name: string; price: string; imageUrl: string; description: string }>;
+  }
+
+  const DEFAULT_BOTS: StartupBot[] = [
+    {
+      id: 'meeting',
+      name: 'Meeting Summarizer',
+      role: 'Meeting Intelligence Officer',
+      description: 'Summarizes Zoom transcripts, extracts action items, decisions, and deadlines.',
+      systemPrompt: 'You are a meeting assistant. Analyze startup meeting transcripts and zoom logs. Extract key decisions, action items, assignees, and deadlines. Use context memories to answer accurately.',
+      icon: 'Video',
+      color: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+      products: []
+    },
+    {
+      id: 'customer',
+      name: 'Customer Support Bot',
+      role: 'CRM & Client Success Manager',
+      description: 'Answers customer inquiries, drafts emails/WhatsApp, and maintains client context.',
+      systemPrompt: 'You are a customer success specialist. Answer customer queries, write email/WhatsApp responses, and resolve support tickets using past interaction memories. Keep it friendly and professional.',
+      icon: 'MessageSquare',
+      color: 'text-green-400 bg-green-500/10 border-green-500/20',
+      products: [
+        {
+          name: 'Premium Subscription Plan',
+          price: '$29/month',
+          imageUrl: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=500',
+          description: 'Unlimited cloud synchronization, 24/7 priority support, and multi-device auth.'
+        }
+      ]
+    },
+    {
+      id: 'employee',
+      name: 'Team & HR Operations',
+      role: 'HR Manager & Employee Coach',
+      description: 'Creates job descriptions, onboarding paths, and manages employee feedback.',
+      systemPrompt: 'You are a startup HR manager. Create onboarding steps, write job descriptions, answer policy questions, and resolve operations questions using startup memories. Keep it clear and supportive.',
+      icon: 'Users',
+      color: 'text-purple-400 bg-purple-500/10 border-purple-500/20',
+      products: []
+    }
+  ];
+
+  const [activeTabLeft, setActiveTabLeft] = useState<'bots' | 'explorer'>('bots');
+  const [bots, setBots] = useState<StartupBot[]>(DEFAULT_BOTS);
+  const [activeBotId, setActiveBotId] = useState<string>('meeting');
+  const [chatHistory, setChatHistory] = useState<Record<string, Array<{ role: 'user' | 'assistant'; content: string; references?: MemoryResult[] }>>>({});
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [useRAG, setUseRAG] = useState(true);
+
+  // Custom Bot Form
+  const [showAddBotModal, setShowAddBotModal] = useState(false);
+  const [customBotName, setCustomBotName] = useState('');
+  const [customBotRole, setCustomBotRole] = useState('');
+  const [customBotSystemPrompt, setCustomBotSystemPrompt] = useState('');
+  const [customBotIcon, setCustomBotIcon] = useState('Brain');
+
+  // Prompt Editor State
+  const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+  const [activeBotPromptOverride, setActiveBotPromptOverride] = useState('');
+
+  // Product Catalog States
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductImage, setNewProductImage] = useState('');
+  const [newProductDesc, setNewProductDesc] = useState('');
+  const [activeBotProducts, setActiveBotProducts] = useState<Array<{ name: string; price: string; imageUrl: string; description: string }>>([]);
+
+  // Load custom bots from localStorage
+  useEffect(() => {
+    const savedBots = localStorage.getItem('promptpilot_custom_bots');
+    if (savedBots) {
+      try {
+        setBots(JSON.parse(savedBots));
+      } catch (e) {
+        console.error('Failed to parse saved custom bots:', e);
+      }
+    }
+  }, []);
+
+  // Sync active prompt override when active bot changes
+  useEffect(() => {
+    const currentBot = bots.find(b => b.id === activeBotId);
+    if (currentBot) {
+      setActiveBotPromptOverride(currentBot.systemPrompt);
+      setActiveBotProducts(currentBot.products || []);
+    }
+    setIsEditingPrompt(false);
+  }, [activeBotId, bots]);
+
+  const handleCreateCustomBot = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customBotName.trim() || !customBotRole.trim() || !customBotSystemPrompt.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Bot Profile', description: 'Please fill out all fields.' });
+      return;
+    }
+
+    const newBot: StartupBot = {
+      id: 'custom-' + Date.now(),
+      name: customBotName.trim(),
+      role: customBotRole.trim(),
+      description: `Custom startup assistant for ${customBotRole.trim()}.`,
+      systemPrompt: customBotSystemPrompt.trim(),
+      icon: customBotIcon,
+      color: 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+    };
+
+    const updated = [...bots, newBot];
+    setBots(updated);
+    localStorage.setItem('promptpilot_custom_bots', JSON.stringify(updated));
+    saveWaConfig(waAutoReplyUnknown, waAutoReplyGroups, waSelectedContacts, waKnownContacts, activeAutoReplyBotId, updated);
+
+    setCustomBotName('');
+    setCustomBotRole('');
+    setCustomBotSystemPrompt('');
+    setActiveBotId(newBot.id);
+    setShowAddBotModal(false);
+
+    toast({ title: '🤖 Bot Created', description: `Your custom assistant '${newBot.name}' is ready to chat.` });
+  };
+
+  const handleDeleteCustomBot = (botId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (botId === 'meeting' || botId === 'customer' || botId === 'employee') return; // protect default bots
+    if (!confirm('Are you sure you want to delete this custom bot?')) return;
+
+    const updated = bots.filter(b => b.id !== botId);
+    setBots(updated);
+    localStorage.setItem('promptpilot_custom_bots', JSON.stringify(updated));
+    saveWaConfig(waAutoReplyUnknown, waAutoReplyGroups, waSelectedContacts, waKnownContacts, activeAutoReplyBotId, updated);
+    if (activeBotId === botId) {
+      setActiveBotId('meeting');
+    }
+    toast({ title: 'Bot Removed', description: 'Custom chatbot has been deleted.' });
+  };
+
+  const handleAddProductToList = () => {
+    if (!newProductName.trim() || !newProductPrice.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Product Details', description: 'Product Name and Price are required.' });
+      return;
+    }
+    const newProduct = {
+      name: newProductName.trim(),
+      price: newProductPrice.trim(),
+      imageUrl: newProductImage.trim(),
+      description: newProductDesc.trim()
+    };
+    setActiveBotProducts(prev => [...prev, newProduct]);
+    setNewProductName('');
+    setNewProductPrice('');
+    setNewProductImage('');
+    setNewProductDesc('');
+    toast({ title: 'Product Added', description: `${newProduct.name} appended to catalog.` });
+  };
+
+  const handleRemoveProductFromList = (index: number) => {
+    setActiveBotProducts(prev => prev.filter((_, idx) => idx !== index));
+    toast({ title: 'Product Removed', description: 'Product deleted from catalog.' });
+  };
+
+  const handleUpdateActivePrompt = () => {
+    const updated = bots.map(b => {
+      if (b.id === activeBotId) {
+        return { ...b, systemPrompt: activeBotPromptOverride, products: activeBotProducts };
+      }
+      return b;
+    });
+    setBots(updated);
+    localStorage.setItem('promptpilot_custom_bots', JSON.stringify(updated));
+    saveWaConfig(waAutoReplyUnknown, waAutoReplyGroups, waSelectedContacts, waKnownContacts, activeAutoReplyBotId, updated);
+    setIsEditingPrompt(false);
+    toast({ title: 'Prompt Saved', description: 'System instructions and product catalog customized successfully.' });
+  };
+
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMessage = chatInput.trim();
+    setChatInput('');
+    setChatLoading(true);
+
+    const bot = bots.find(b => b.id === activeBotId) || bots[0];
+    const systemPrompt = activeBotPromptOverride || bot.systemPrompt;
+
+    const newUserMsg = { role: 'user' as const, content: userMessage };
+    const currentHist = chatHistory[bot.id] || [];
+    const updatedHistory = [...currentHist, newUserMsg];
+    setChatHistory(prev => ({ ...prev, [bot.id]: updatedHistory }));
+
+    try {
+      let contextString = '';
+      let references: MemoryResult[] = [];
+
+      if (useRAG && serverOnline) {
+        try {
+          const searchParams = { query: userMessage, top_k: 5, use_gemma: false };
+          const res = await fetch('/api/context/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchParams),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            references = data.results || [];
+            if (references.length > 0) {
+              contextString = "\n\n[START OF STARTUP MEMORIES CONTEXT]\n" +
+                references.map((r, idx) => `Memory ${idx + 1} (${r.source_app} - ${r.created_at?.slice(0, 10)}):\n${r.content}`).join("\n\n") +
+                "\n[END OF STARTUP MEMORIES CONTEXT]";
+            }
+          }
+        } catch (searchErr) {
+          console.warn('RAG search failed, continuing without context:', searchErr);
+        }
+      }
+
+      const prompt = `System Instructions:\n${systemPrompt}${contextString}\n\nChat History:\n${
+        updatedHistory.slice(-6, -1).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join("\n")
+      }\nUser: ${userMessage}\nAssistant:`;
+
+      const chatRes = await fetch('/api/context/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      if (!chatRes.ok) {
+        const errText = await chatRes.text();
+        throw new Error(errText || 'Failed to communicate with local Chat API.');
+      }
+      const chatData = await chatRes.json();
+      const gemmaResponse = chatData.reply;
+
+      const assistantMsg = {
+        role: 'assistant' as const,
+        content: gemmaResponse.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim(),
+        references: references.length > 0 ? references : undefined
+      };
+      setChatHistory(prev => ({ ...prev, [bot.id]: [...(prev[bot.id] || []), assistantMsg] }));
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Chatbot Error', description: err.message || 'Failed to get response from Gemma.' });
+      const errMsg = { role: 'assistant' as const, content: `Error: Could not retrieve response from local Gemma model. Make sure Ollama is serving ${settings.ollamaModel}.` };
+      setChatHistory(prev => ({ ...prev, [bot.id]: [...(prev[bot.id] || []), errMsg] }));
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const renderBotIcon = (iconName: string, className?: string) => {
+    switch (iconName) {
+      case 'Video': return <Video className={className} />;
+      case 'MessageSquare': return <MessageSquare className={className} />;
+      case 'Users': return <Users className={className} />;
+      case 'Brain': return <Brain className={className} />;
+      case 'Code': return <Code className={className} />;
+      case 'Globe': return <Globe className={className} />;
+      case 'Zap': return <Zap className={className} />;
+      default: return <Sparkles className={className} />;
+    }
+  };
+
   // ── Extra States ────────────────────────────────────────────────────────────
   const [expandedResults, setExpandedResults] = useState<Record<number, boolean>>({});
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -104,6 +375,7 @@ export function ContextPilotTab() {
   // WhatsApp Auto-Reply Config states
   const [waAutoReplyUnknown, setWaAutoReplyUnknown] = useState(true);
   const [waAutoReplyGroups, setWaAutoReplyGroups] = useState(false);
+  const [activeAutoReplyBotId, setActiveAutoReplyBotId] = useState('customer');
   const [waSelectedContacts, setWaSelectedContacts] = useState<string[]>([]);
   const [waKnownContacts, setWaKnownContacts] = useState<string[]>([]);
   const [waSelectedInput, setWaSelectedInput] = useState('');
@@ -189,6 +461,19 @@ export function ContextPilotTab() {
           setWaAutoReplyGroups(config.autoReplyGroups ?? false);
           setWaSelectedContacts(config.selectedContacts || []);
           setWaKnownContacts(config.knownContacts || []);
+          setActiveAutoReplyBotId(config.activeAutoReplyBotId || 'customer');
+          
+          if (config.bots && Array.isArray(config.bots) && config.bots.length > 0) {
+            setBots(prevBots => {
+              const botMap = new Map(prevBots.map(b => [b.id, b]));
+              config.bots.forEach((serverBot: any) => {
+                botMap.set(serverBot.id, serverBot);
+              });
+              const mergedBots = Array.from(botMap.values());
+              localStorage.setItem('promptpilot_custom_bots', JSON.stringify(mergedBots));
+              return mergedBots;
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to load WhatsApp auto-reply config:', err);
@@ -201,7 +486,9 @@ export function ContextPilotTab() {
     autoReplyUnknown: boolean,
     autoReplyGroups: boolean,
     selected: string[],
-    known: string[]
+    known: string[],
+    overrideBotId?: string,
+    overrideBots?: StartupBot[]
   ) => {
     try {
       const res = await fetch('/api/context/whatsapp/config', {
@@ -212,6 +499,8 @@ export function ContextPilotTab() {
           autoReplyGroups,
           selectedContacts: selected,
           knownContacts: known,
+          activeAutoReplyBotId: overrideBotId || activeAutoReplyBotId,
+          bots: overrideBots || bots
         }),
       });
       if (res.ok) {
@@ -572,20 +861,22 @@ export function ContextPilotTab() {
   };
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  const activeBot = bots.find(b => b.id === activeBotId) || bots[0];
+
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
+    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
 
       {/* ── Hero Header ───────────────────────────────────────────────────── */}
       <div className="text-center space-y-4 pt-2">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.2)]">
           <Brain className="h-3 w-3 animate-pulse" />
-          Universal Memory Layer
+          Startup Workspace Assistant
         </div>
         <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-none">
           Context<span className="text-primary text-glow">Pilot</span>
         </h2>
         <p className="text-slate-400 text-base max-w-xl mx-auto">
-          Index everything. Find anything. Powered by local Gemma — your data never leaves your machine.
+          Train custom local agents on your Zoom meetings, client chats, and emails. Powered by Gemma.
         </p>
       </div>
 
@@ -609,325 +900,679 @@ export function ContextPilotTab() {
       {/* ── Main Grid ─────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-        {/* ── Left: Search Panel (3/5) ─────────────────────────────────────── */}
+        {/* ── Left Workspace (3/5) ─────────────────────────────────────── */}
         <div className="lg:col-span-3 space-y-4">
-          <Card className="glass-panel border-white/10 rounded-3xl overflow-hidden">
-            <CardContent className="p-6 space-y-4">
-              {/* Search input */}
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary pointer-events-none" />
-                <input
-                  id="context-search-input"
-                  type="text"
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  placeholder="Type anything — client, invoice, doctor, restaurant…"
-                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-600 text-base focus:outline-none focus:border-primary/50 focus:bg-primary/5 transition-all"
-                />
-                {searching && (
-                  <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-spin" />
-                )}
+          
+          {/* Tab Switcher */}
+          <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl">
+            <button
+              onClick={() => setActiveTabLeft('bots')}
+              className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${
+                activeTabLeft === 'bots'
+                  ? 'bg-primary text-primary-foreground shadow-lg'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Sparkles className="h-4 w-4" /> Startup Chatbots
+            </button>
+            <button
+              onClick={() => setActiveTabLeft('explorer')}
+              className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${
+                activeTabLeft === 'explorer'
+                  ? 'bg-primary text-primary-foreground shadow-lg'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Database className="h-4 w-4" /> Context Explorer
+            </button>
+          </div>
+
+          {/* tab 1: Startup Chatbots */}
+          {activeTabLeft === 'bots' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              {/* Bot selection list */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {bots.map((bot) => {
+                  const isActive = activeBotId === bot.id;
+                  return (
+                    <div
+                      key={bot.id}
+                      onClick={() => setActiveBotId(bot.id)}
+                      className={`relative p-3 rounded-2xl border bg-gradient-to-br text-left cursor-pointer transition-all ${
+                        isActive
+                          ? 'bg-primary/20 border-primary/40 shadow-lg scale-[1.02]'
+                          : 'bg-white/5 border-white/5 hover:border-white/15'
+                      }`}
+                    >
+                      {bot.id !== 'meeting' && bot.id !== 'customer' && bot.id !== 'employee' && (
+                        <button
+                          onClick={(e) => handleDeleteCustomBot(bot.id, e)}
+                          className="absolute top-2.5 right-2.5 text-slate-500 hover:text-red-400 transition-colors"
+                          title="Delete custom bot"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-white/10 flex-shrink-0">
+                          {renderBotIcon(bot.icon, 'h-4 w-4 text-white')}
+                        </div>
+                        <div className="min-w-0 pr-4">
+                          <p className="text-xs font-black text-white truncate">{bot.name}</p>
+                          <p className="text-[9px] text-slate-400 truncate">{bot.role}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div
+                  onClick={() => setShowAddBotModal(true)}
+                  className="p-3 rounded-2xl border border-dashed border-white/10 hover:border-primary/40 bg-white/5 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]"
+                >
+                  <PlusCircle className="h-4 w-4 text-primary animate-pulse" />
+                  <span className="text-xs font-black text-white uppercase tracking-wider">New Bot</span>
+                </div>
               </div>
 
-              {/* Tab Selector */}
-              <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl">
-                <button
-                  onClick={() => setActiveTab('all')}
-                  className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
-                    activeTab === 'all'
-                      ? 'bg-primary text-primary-foreground shadow-lg'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  🌐 All Memories
-                </button>
-                <button
-                  onClick={() => setActiveTab('Gmail')}
-                  className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                    activeTab === 'Gmail'
-                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <Mail className="h-3.5 w-3.5" /> Gmail Only
-                </button>
-                <button
-                  onClick={() => setActiveTab('WhatsApp')}
-                  className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                    activeTab === 'WhatsApp'
-                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Only
-                </button>
-              </div>
-
-              {/* Gemma toggle */}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setUseGemma(false)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all ${!useGemma ? 'bg-primary text-primary-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                  Fast (Hybrid)
-                </button>
-                <button
-                  onClick={() => setUseGemma(true)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${useGemma ? 'bg-accent text-accent-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Gemma Re-rank
-                </button>
-                {searchTime !== null && (
-                  <span className="ml-auto text-xs text-slate-500 flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {searchTime}ms
-                  </span>
-                )}
-              </div>
-
-              {/* Results */}
-              {results.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
-                    Top {results.length} Memories
+              {/* Bot Conversation Workspace */}
+              <Card className="glass-panel border-white/10 rounded-3xl overflow-hidden flex flex-col h-[520px]">
+                {/* Header */}
+                <div className="p-4 border-b border-white/5 bg-white/[0.02] flex items-center justify-between gap-4 flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-primary/10">
+                      {renderBotIcon(activeBot?.icon || 'Brain', 'h-5 w-5 text-primary')}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-black text-white">{activeBot?.name}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingPrompt(!isEditingPrompt)}
+                          className="text-[10px] font-bold text-primary hover:text-white transition-colors flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-primary/10 border border-primary/20 hover:bg-primary/20"
+                        >
+                          <FileEdit className="h-3 w-3" /> Configure Products
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-slate-500">{activeBot?.role}</p>
+                    </div>
                   </div>
-                  {results.map((result, i) => {
-                    const appCfg = APP_ICONS[result.source_app] || APP_ICONS['unknown'];
-                    const AppIcon = appCfg.icon;
-                    const isExpanded = !!expandedResults[result.id];
-                    const isLong = result.content.length > 150;
-                    return (
-                      <div
-                        key={result.id}
-                        className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/30 rounded-3xl p-5 transition-all cursor-pointer"
-                        onClick={() => {
-                          if (isLong) {
-                            setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }));
-                          }
-                        }}
-                      >
-                        {/* Rank badge */}
-                        <div className="absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs font-black flex items-center justify-center shadow-lg border border-white/10">
-                          {i + 1}
-                        </div>
 
-                        {/* Header row */}
-                        <div className="flex items-center gap-2 mb-3">
-                          <AppIcon className={`h-4 w-4 ${appCfg.color} flex-shrink-0`} />
-                          <span className={`text-xs font-bold ${appCfg.color}`}>{result.source_app}</span>
-                          <span className="text-xs text-slate-500 ml-auto">
-                            {result.created_at?.slice(0, 10)}
-                          </span>
-                          <span className="text-xs text-primary font-bold mr-2">
-                            {Math.round(result.score * 100)}%
-                          </span>
-                          
-                          <div className="flex items-center gap-1.5">
-                            {/* Copy button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => { e.stopPropagation(); copyResult(result); }}
-                              className="h-8 w-8 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-white"
-                              title="Copy memory content"
-                            >
-                              {copiedId === result.id
-                                ? <CheckCheck className="h-4 w-4 text-emerald-400" />
-                                : <Copy className="h-4 w-4" />
-                              }
-                            </Button>
+                  <div className="flex items-center gap-2">
+                    {/* Toggle RAG */}
+                    <button
+                      onClick={() => setUseRAG(!useRAG)}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all flex items-center gap-1.5 ${
+                        useRAG
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-white/5 border-white/10 text-slate-500'
+                      }`}
+                      title="Inject startup memory logs via vector RAG"
+                    >
+                      <Database className="h-3.5 w-3.5" /> RAG: {useRAG ? 'ON' : 'OFF'}
+                    </button>
 
-                            {/* Draft Email button */}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedMemory(result);
-                                setShowEmailModal(true);
-                              }}
-                              className="h-8 w-8 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-white"
-                              title="Draft email using this memory context"
-                            >
-                              <FileEdit className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
+                    {/* Customize prompt */}
+                    <button
+                      onClick={() => setIsEditingPrompt(!isEditingPrompt)}
+                      className={`p-1.5 rounded-xl border transition-all ${
+                        isEditingPrompt
+                          ? 'bg-primary/20 border-primary/30 text-primary'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                      title="Edit Bot System Instructions"
+                    >
+                      <FileEdit className="h-4 w-4" />
+                    </button>
 
-                        {/* Content */}
-                        <div className="space-y-2">
-                          <p className={`text-sm text-slate-300 leading-relaxed transition-all ${isExpanded ? '' : 'line-clamp-3'}`}>
-                            {result.content}
-                          </p>
-                          {isLong && (
-                            <span className="text-[11px] font-bold text-primary hover:text-primary-foreground flex items-center gap-1 mt-1">
-                              {isExpanded ? (
-                                <><ChevronUp className="h-3.5 w-3.5" /> Show Less</>
-                              ) : (
-                                <><ChevronDown className="h-3.5 w-3.5" /> Read Full Message</>
+                    {/* Clear Chat */}
+                    <button
+                      onClick={() => {
+                        if (confirm('Clear chat history for this bot?')) {
+                          setChatHistory(prev => ({ ...prev, [activeBotId]: [] }));
+                        }
+                      }}
+                      className="p-1.5 rounded-xl border bg-white/5 border-white/10 text-slate-400 hover:text-red-400 hover:border-red-500/30 transition-all"
+                      title="Clear Chat History"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* System Prompt Customizer */}
+                {isEditingPrompt && (
+                  <div className="p-4 border-b border-white/5 bg-primary/[0.02] space-y-3 animate-in slide-in-from-top-4 duration-300 flex-shrink-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black text-primary uppercase tracking-widest">Configure Bot Knowledge & Product Catalog</span>
+                      <span className="text-[9px] text-slate-500 font-bold">Running locally via Gemma only</span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Feed your startup's products, prices, details, and image URLs below. The chatbot will use this as its source of truth to auto-reply to users.
+                    </p>
+                    <textarea
+                      value={activeBotPromptOverride}
+                      onChange={(e) => setActiveBotPromptOverride(e.target.value)}
+                      placeholder={`Example format:
+Product: Premium Subscription Plan
+Price: $29/month
+Image: https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=500
+Description: Unlimited cloud synchronization, 24/7 priority support, and multi-device auth.
+
+Product: Standard Setup Package
+Price: $9/month
+Image: https://images.unsplash.com/photo-1551434678-e076c223a692?w=500
+Description: Up to 2 accounts, standard ticket support, and daily RAG database updates.
+
+Rule: If a user asks about rates/availability, recommend the Standard Package or Premium Subscription, share the pricing, and show the image link exactly.`}
+                      className="w-full h-36 bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 resize-none"
+                    />
+
+                    {/* Structured Product Catalog Manager */}
+                    <div className="pt-3 border-t border-white/5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">Structured Product Catalog</span>
+                        <span className="text-[9px] text-slate-500 font-bold">{activeBotProducts.length} Products configured</span>
+                      </div>
+
+                      {/* Products List */}
+                      {activeBotProducts.length > 0 && (
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                          {activeBotProducts.map((product, idx) => (
+                            <div key={idx} className="flex gap-3 p-3 bg-white/5 border border-white/10 rounded-2xl relative group">
+                              {product.imageUrl && (
+                                <img
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0"
+                                />
                               )}
-                            </span>
-                          )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs font-bold text-white truncate">{product.name}</p>
+                                  <p className="text-[10px] text-emerald-400 font-bold">{product.price}</p>
+                                </div>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5">{product.description}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveProductFromList(idx)}
+                                className="text-slate-500 hover:text-red-400 transition-colors self-center p-1 flex-shrink-0"
+                                title="Remove Product"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      )}
 
-              {/* Empty state */}
-              {query.trim().length >= 2 && !searching && results.length === 0 && (
-                <div className="text-center py-8 text-slate-600">
-                  <Brain className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No memories found for "{query}"</p>
-                  <p className="text-xs mt-1">Add data using the Quick Add Memory form below or connect integrations on the right →</p>
-                </div>
-              )}
-
-              {/* Onboarding / Empty states when not searching and results are empty */}
-              {query.trim().length < 2 && !searching && results.length === 0 && (
-                <div className="pt-2">
-                  {activeTab === 'WhatsApp' && (
-                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
-                      <div className="inline-flex p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
-                        <MessageSquare className="h-8 w-8" />
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="text-lg font-black text-white">No WhatsApp Messages Yet</h4>
-                        <p className="text-sm text-slate-400 max-w-md mx-auto">
-                          Connect your WhatsApp account to automatically capture messages and enable AI auto-replies.
-                        </p>
-                      </div>
-                      <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">1</div>
-                          <div>
-                            <p className="font-bold text-white">Scan the QR Code</p>
-                            <p className="text-slate-400">Click &quot;Scan QR Code&quot; in the WhatsApp Auto-Sync panel on the right to link your phone.</p>
-                          </div>
+                      {/* Add Product Form */}
+                      <div className="p-3 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2">
+                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Add Product to Catalog</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            placeholder="Product Name (e.g. Premium Plan)"
+                            value={newProductName}
+                            onChange={(e) => setNewProductName(e.target.value)}
+                            className="bg-black/20 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Price (e.g. $29/mo)"
+                            value={newProductPrice}
+                            onChange={(e) => setNewProductPrice(e.target.value)}
+                            className="bg-black/20 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50"
+                          />
                         </div>
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">2</div>
-                          <div>
-                            <p className="font-bold text-white">Real-time Auto-Sync</p>
-                            <p className="text-slate-400">Once connected, incoming chats will automatically sync to memory.</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">3</div>
-                          <div>
-                            <p className="font-bold text-white">Manual Add (Optional)</p>
-                            <p className="text-slate-400">Use the &quot;Quick Add Memory&quot; section below to type and index WhatsApp content manually.</p>
-                          </div>
+                        <input
+                          type="text"
+                          placeholder="Image URL (e.g. https://images.unsplash.com/...)"
+                          value={newProductImage}
+                          onChange={(e) => setNewProductImage(e.target.value)}
+                          className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50"
+                        />
+                        <div className="flex gap-2">
+                          <textarea
+                            placeholder="Product Description and Specifications..."
+                            value={newProductDesc}
+                            onChange={(e) => setNewProductDesc(e.target.value)}
+                            className="flex-1 h-12 bg-black/20 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 resize-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddProductToList}
+                            className="px-4 bg-primary/20 border border-primary/30 text-primary hover:bg-primary/30 rounded-xl text-xs font-black uppercase tracking-wider transition-all h-12 flex items-center justify-center flex-shrink-0"
+                          >
+                            Add
+                          </button>
                         </div>
                       </div>
                     </div>
-                  )}
 
-                  {activeTab === 'Gmail' && (
-                    <div className="bg-red-500/5 border border-red-500/20 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
-                      <div className="inline-flex p-3 bg-red-500/10 rounded-2xl text-red-400">
-                        <Mail className="h-8 w-8" />
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="text-lg font-black text-white">No Gmail Messages Yet</h4>
-                        <p className="text-sm text-slate-400 max-w-md mx-auto">
-                          Connect your Google Account to import your recent emails and context.
-                        </p>
-                      </div>
-                      <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-red-500/10 text-red-400 font-bold flex items-center justify-center flex-shrink-0">1</div>
-                          <div>
-                            <p className="font-bold text-white">Connect Google Account</p>
-                            <p className="text-slate-400">Click &quot;Connect Google Account&quot; on the right to sign in.</p>
+                    <div className="flex gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setActiveBotPromptOverride(activeBot?.systemPrompt || '');
+                          setIsEditingPrompt(false);
+                        }}
+                        className="text-xs text-slate-400 hover:text-white h-8"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleUpdateActivePrompt}
+                        className="bg-primary text-primary-foreground font-black text-xs uppercase px-4 h-8 rounded-lg"
+                      >
+                        Save Prompt
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Conversation messages */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[150px]">
+                  {/* welcome bubble */}
+                  <div className="bg-white/5 border border-white/5 rounded-2xl p-4 space-y-1">
+                    <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Brain className="h-3.5 w-3.5 text-primary" /> {activeBot?.name} Active
+                    </p>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      {activeBot?.description} Ask me anything about your files, meetings, customer support logs or employee notes. I query database memories dynamically to help you.
+                    </p>
+                  </div>
+
+                  {/* messages list */}
+                  {(chatHistory[activeBotId] || []).map((msg, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                    >
+                      <div
+                        className={`p-4 rounded-2xl max-w-[85%] text-xs leading-relaxed ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-primary-foreground font-medium rounded-tr-none'
+                            : 'bg-white/5 border border-white/10 text-slate-200 rounded-tl-none shadow-md shadow-black/10'
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                        {/* References */}
+                        {msg.references && msg.references.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
+                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest block">Injected RAG Context:</span>
+                            <div className="flex flex-wrap gap-1">
+                              {msg.references.map((ref) => {
+                                const appIconCfg = APP_ICONS[ref.source_app] || APP_ICONS['unknown'];
+                                const AppIcon = appIconCfg.icon;
+                                return (
+                                  <Badge key={ref.id} variant="outline" className="text-[9px] bg-white/5 border-white/10 text-slate-400 py-0.5 px-1.5 flex items-center gap-1 font-semibold">
+                                    <AppIcon className="h-2.5 w-2.5" /> {ref.source_app} ({ref.created_at?.slice(5, 10)})
+                                  </Badge>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-red-500/10 text-red-400 font-bold flex items-center justify-center flex-shrink-0">2</div>
-                          <div>
-                            <p className="font-bold text-white">Sync Recent Emails</p>
-                            <p className="text-slate-400">Click &quot;Sync Emails&quot; to import the latest messages into memory.</p>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
-                  )}
+                  ))}
 
-                  {activeTab === 'all' && (
-                    <div className="bg-white/5 border border-white/10 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
-                      <div className="inline-flex p-3 bg-primary/10 rounded-2xl text-primary">
-                        <Brain className="h-8 w-8" />
-                      </div>
-                      <div className="space-y-2">
-                        <h4 className="text-lg font-black text-white">No Memories Indexed</h4>
-                        <p className="text-sm text-slate-400 max-w-md mx-auto">
-                          Start building your local context database by connecting Gmail or WhatsApp, or manually pasting notes.
-                        </p>
-                      </div>
-                      <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center flex-shrink-0">1</div>
-                          <div>
-                            <p className="font-bold text-white">Connect WhatsApp / Gmail</p>
-                            <p className="text-slate-400">Use the accounts panel on the right to link your integrations.</p>
-                          </div>
-                        </div>
-                        <div className="flex items-start gap-3 text-xs text-slate-300">
-                          <div className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center flex-shrink-0">2</div>
-                          <div>
-                            <p className="font-bold text-white">Add Notes Manually</p>
-                            <p className="text-slate-400">Paste text in the &quot;Quick Add Memory&quot; section below to instant index.</p>
-                          </div>
-                        </div>
-                      </div>
+                  {chatLoading && (
+                    <div className="flex items-center gap-2 text-slate-500 text-xs py-2 pl-1 animate-pulse">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                      <span>Gemma is thinking...</span>
                     </div>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
 
-          {/* ── Paste / Quick Add ──────────────────────────────────────────── */}
-          <Card className="glass-panel border-white/10 rounded-3xl overflow-hidden">
-            <CardHeader className="px-6 pt-5 pb-2">
-              <div className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-cyan-400" />
-                <span className="text-sm font-black text-white uppercase tracking-wider">Quick Add Memory</span>
-              </div>
-            </CardHeader>
-            <CardContent className="px-6 pb-6 space-y-3">
-              <Select value={pasteApp} onValueChange={setPasteApp}>
-                <SelectTrigger className="w-full bg-[#1e293b] border-white/10 text-white rounded-xl h-11 focus:ring-primary/50">
-                  <SelectValue placeholder="Select type..." />
-                </SelectTrigger>
-                <SelectContent className="bg-[#1e293b] border-white/10 text-white">
-                  <SelectItem value="manual">📝 Manual note</SelectItem>
-                  <SelectItem value="WhatsApp">💬 WhatsApp message</SelectItem>
-                  <SelectItem value="Gmail">📧 Email excerpt</SelectItem>
-                  <SelectItem value="Browser">🌐 Browser tab / article</SelectItem>
-                  <SelectItem value="Zoom">🎥 Zoom / meeting note</SelectItem>
-                </SelectContent>
-              </Select>
-              <Textarea
-                value={pasteText}
-                onChange={e => setPasteText(e.target.value)}
-                placeholder="Paste any text here to index it — a message, note, article, meeting summary…"
-                className="min-h-[100px] bg-white/5 border-white/10 text-white placeholder:text-slate-600 rounded-xl resize-none focus-visible:ring-primary/50 text-sm"
-                style={{ color: 'white', WebkitTextFillColor: 'white' }}
-              />
-              <Button
-                onClick={handlePasteIngest}
-                disabled={ingesting || !pasteText.trim()}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold uppercase tracking-wider h-11"
-              >
-                {ingesting
-                  ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Indexing…</>
-                  : <><Brain className="h-4 w-4 mr-2" />Index This Memory</>
-                }
-              </Button>
-            </CardContent>
-          </Card>
+                {/* Send form */}
+                <form onSubmit={handleSendChatMessage} className="p-3 border-t border-white/5 bg-white/[0.01] flex gap-2 flex-shrink-0">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    disabled={chatLoading}
+                    placeholder={`Message ${activeBot?.name}...`}
+                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 disabled:opacity-50"
+                  />
+                  <Button
+                    type="submit"
+                    disabled={chatLoading || !chatInput.trim()}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-4 font-bold h-9 flex items-center justify-center flex-shrink-0"
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </form>
+              </Card>
+            </div>
+          )}
+
+          {/* tab 2: Context Explorer */}
+          {activeTabLeft === 'explorer' && (
+            <div className="space-y-4 animate-in fade-in duration-300">
+              <Card className="glass-panel border-white/10 rounded-3xl overflow-hidden">
+                <CardContent className="p-6 space-y-4">
+                  {/* Search input */}
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary pointer-events-none" />
+                    <input
+                      id="context-search-input"
+                      type="text"
+                      value={query}
+                      onChange={e => setQuery(e.target.value)}
+                      placeholder="Type anything — client, invoice, doctor, restaurant…"
+                      className="w-full bg-white/5 border border-white/10 rounded-2xl pl-12 pr-12 py-4 text-white placeholder:text-slate-600 text-base focus:outline-none focus:border-primary/50 focus:bg-primary/5 transition-all"
+                    />
+                    {searching && (
+                      <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-primary animate-spin" />
+                    )}
+                  </div>
+
+                  {/* Tab Selector */}
+                  <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl">
+                    <button
+                      onClick={() => setActiveTab('all')}
+                      className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
+                        activeTab === 'all'
+                          ? 'bg-primary text-primary-foreground shadow-lg'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      🌐 All Memories
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('Gmail')}
+                      className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                        activeTab === 'Gmail'
+                          ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <Mail className="h-3.5 w-3.5" /> Gmail Only
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('WhatsApp')}
+                      className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                        activeTab === 'WhatsApp'
+                          ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                          : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Only
+                    </button>
+                  </div>
+
+                  {/* Gemma toggle */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setUseGemma(false)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all ${!useGemma ? 'bg-primary text-primary-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                    >
+                      Fast (Hybrid)
+                    </button>
+                    <button
+                      onClick={() => setUseGemma(true)}
+                      className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${useGemma ? 'bg-accent text-accent-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      Gemma Re-rank
+                    </button>
+                    {searchTime !== null && (
+                      <span className="ml-auto text-xs text-slate-500 flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {searchTime}ms
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Results */}
+                  {results.length > 0 && (
+                    <div className="space-y-3 pt-2">
+                      <div className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">
+                        Top {results.length} Memories
+                      </div>
+                      {results.map((result, i) => {
+                        const appCfg = APP_ICONS[result.source_app] || APP_ICONS['unknown'];
+                        const AppIcon = appCfg.icon;
+                        const isExpanded = !!expandedResults[result.id];
+                        const isLong = result.content.length > 150;
+                        return (
+                          <div
+                            key={result.id}
+                            className="group relative bg-white/5 hover:bg-white/10 border border-white/10 hover:border-primary/30 rounded-3xl p-5 transition-all cursor-pointer"
+                            onClick={() => {
+                              if (isLong) {
+                                setExpandedResults(prev => ({ ...prev, [result.id]: !prev[result.id] }));
+                              }
+                            }}
+                          >
+                            {/* Rank badge */}
+                            <div className="absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full bg-primary text-primary-foreground text-xs font-black flex items-center justify-center shadow-lg border border-white/10">
+                              {i + 1}
+                            </div>
+
+                            {/* Header row */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <AppIcon className={`h-4 w-4 ${appCfg.color} flex-shrink-0`} />
+                              <span className={`text-xs font-bold ${appCfg.color}`}>{result.source_app}</span>
+                              <span className="text-xs text-slate-500 ml-auto">
+                                {result.created_at?.slice(0, 10)}
+                              </span>
+                              <span className="text-xs text-primary font-bold mr-2">
+                                {Math.round(result.score * 100)}%
+                              </span>
+                              
+                              <div className="flex items-center gap-1.5">
+                                {/* Copy button */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => { e.stopPropagation(); copyResult(result); }}
+                                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-white"
+                                  title="Copy memory content"
+                                >
+                                  {copiedId === result.id
+                                    ? <CheckCheck className="h-4 w-4 text-emerald-400" />
+                                    : <Copy className="h-4 w-4" />
+                                  }
+                                </Button>
+
+                                {/* Draft Email button */}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedMemory(result);
+                                    setShowEmailModal(true);
+                                  }}
+                                  className="h-8 w-8 rounded-lg bg-white/5 hover:bg-primary/20 text-slate-400 hover:text-white"
+                                  title="Draft email using this memory context"
+                                >
+                                  <FileEdit className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className="space-y-2">
+                              <p className={`text-sm text-slate-300 leading-relaxed transition-all ${isExpanded ? '' : 'line-clamp-3'}`}>
+                                {result.content}
+                              </p>
+                              {isLong && (
+                                <span className="text-[11px] font-bold text-primary hover:text-primary-foreground flex items-center gap-1 mt-1">
+                                  {isExpanded ? (
+                                    <><ChevronUp className="h-3.5 w-3.5" /> Show Less</>
+                                  ) : (
+                                    <><ChevronDown className="h-3.5 w-3.5" /> Read Full Message</>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {query.trim().length >= 2 && !searching && results.length === 0 && (
+                    <div className="text-center py-8 text-slate-600">
+                      <Brain className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No memories found for "{query}"</p>
+                      <p className="text-xs mt-1">Add data using the Quick Add Memory form below or connect integrations on the right →</p>
+                    </div>
+                  )}
+
+                  {/* Onboarding / Empty states when not searching and results are empty */}
+                  {query.trim().length < 2 && !searching && results.length === 0 && (
+                    <div className="pt-2">
+                      {activeTab === 'WhatsApp' && (
+                        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
+                          <div className="inline-flex p-3 bg-emerald-500/10 rounded-2xl text-emerald-400">
+                            <MessageSquare className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-lg font-black text-white">No WhatsApp Messages Yet</h4>
+                            <p className="text-sm text-slate-400 max-w-md mx-auto">
+                              Connect your WhatsApp account to automatically capture messages and enable AI auto-replies.
+                            </p>
+                          </div>
+                          <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">1</div>
+                              <div>
+                                <p className="font-bold text-white">Scan the QR Code</p>
+                                <p className="text-slate-400">Click &quot;Scan QR Code&quot; in the WhatsApp Auto-Sync panel on the right to link your phone.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">2</div>
+                              <div>
+                                <p className="font-bold text-white">Real-time Auto-Sync</p>
+                                <p className="text-slate-400">Once connected, incoming chats will automatically sync to memory.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center flex-shrink-0">3</div>
+                              <div>
+                                <p className="font-bold text-white">Manual Add (Optional)</p>
+                                <p className="text-slate-400">Use the &quot;Quick Add Memory&quot; section below to type and index WhatsApp content manually.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'Gmail' && (
+                        <div className="bg-red-500/5 border border-red-500/20 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
+                          <div className="inline-flex p-3 bg-red-500/10 rounded-2xl text-red-400">
+                            <Mail className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-lg font-black text-white">No Gmail Messages Yet</h4>
+                            <p className="text-sm text-slate-400 max-w-md mx-auto">
+                              Connect your Google Account to import your recent emails and context.
+                            </p>
+                          </div>
+                          <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-red-500/10 text-red-400 font-bold flex items-center justify-center flex-shrink-0">1</div>
+                              <div>
+                                <p className="font-bold text-white">Connect Google Account</p>
+                                <p className="text-slate-400">Click &quot;Connect Google Account&quot; on the right to sign in.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-red-500/10 text-red-400 font-bold flex items-center justify-center flex-shrink-0">2</div>
+                              <div>
+                                <p className="font-bold text-white">Sync Recent Emails</p>
+                                <p className="text-slate-400">Click &quot;Sync Emails&quot; to import the latest messages into memory.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {activeTab === 'all' && (
+                        <div className="bg-white/5 border border-white/10 rounded-3xl p-8 text-center space-y-4 animate-in fade-in duration-300">
+                          <div className="inline-flex p-3 bg-primary/10 rounded-2xl text-primary">
+                            <Brain className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="text-lg font-black text-white">No Memories Indexed</h4>
+                            <p className="text-sm text-slate-400 max-w-md mx-auto">
+                              Start building your local context database by connecting Gmail or WhatsApp, or manually pasting notes.
+                            </p>
+                          </div>
+                          <div className="pt-2 max-w-sm mx-auto space-y-3 text-left">
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center flex-shrink-0">1</div>
+                              <div>
+                                <p className="font-bold text-white">Connect WhatsApp / Gmail</p>
+                                <p className="text-slate-400">Use the accounts panel on the right to link your integrations.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-3 text-xs text-slate-300">
+                              <div className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center flex-shrink-0">2</div>
+                              <div>
+                                <p className="font-bold text-white">Add Notes Manually</p>
+                                <p className="text-slate-400">Paste text in the &quot;Quick Add Memory&quot; section below to instant index.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* ── Paste / Quick Add ──────────────────────────────────────────── */}
+              <Card className="glass-panel border-white/10 rounded-3xl overflow-hidden">
+                <CardHeader className="px-6 pt-5 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Database className="h-4 w-4 text-cyan-400" />
+                    <span className="text-sm font-black text-white uppercase tracking-wider">Quick Add Memory</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="px-6 pb-6 space-y-3">
+                  <Select value={pasteApp} onValueChange={setPasteApp}>
+                    <SelectTrigger className="w-full bg-[#1e293b] border-white/10 text-white rounded-xl h-11 focus:ring-primary/50">
+                      <SelectValue placeholder="Select type..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-[#1e293b] border-white/10 text-white">
+                      <SelectItem value="manual">📝 Manual note</SelectItem>
+                      <SelectItem value="WhatsApp">💬 WhatsApp message</SelectItem>
+                      <SelectItem value="Gmail">📧 Email excerpt</SelectItem>
+                      <SelectItem value="Browser">🌐 Browser tab / article</SelectItem>
+                      <SelectItem value="Zoom">🎥 Zoom / meeting note</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    value={pasteText}
+                    onChange={e => setPasteText(e.target.value)}
+                    placeholder="Paste any text here to index it — a message, note, article, meeting summary…"
+                    className="min-h-[100px] bg-white/5 border-white/10 text-white placeholder:text-slate-600 rounded-xl resize-none focus-visible:ring-primary/50 text-sm"
+                    style={{ color: 'white', WebkitTextFillColor: 'white' }}
+                  />
+                  <Button
+                    onClick={handlePasteIngest}
+                    disabled={ingesting || !pasteText.trim()}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold uppercase tracking-wider h-11"
+                  >
+                    {ingesting
+                      ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Indexing…</>
+                      : <><Brain className="h-4 w-4 mr-2" />Index This Memory</>
+                    }
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
 
         {/* ── Right: Stats + Connected Accounts (2/5) ───────────────────────── */}
@@ -1087,6 +1732,31 @@ export function ContextPilotTab() {
               </div>
             </CardHeader>
             <CardContent className="px-5 pb-5 space-y-4">
+              {/* Bot Selector */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Auto-Reply Chatbot Agent
+                </label>
+                <Select
+                  value={activeAutoReplyBotId}
+                  onValueChange={(val) => {
+                    setActiveAutoReplyBotId(val);
+                    saveWaConfig(waAutoReplyUnknown, waAutoReplyGroups, waSelectedContacts, waKnownContacts, val);
+                  }}
+                >
+                  <SelectTrigger className="w-full bg-[#161b26] border border-white/10 text-white rounded-xl h-10 focus:ring-primary/50 text-xs font-semibold">
+                    <SelectValue placeholder="Select chatbot agent..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0b0f19] border border-white/15 text-white rounded-xl">
+                    {bots.map((bot) => (
+                      <SelectItem key={bot.id} value={bot.id} className="text-slate-200 hover:bg-white/5 focus:bg-white/5 focus:text-white cursor-pointer text-xs font-semibold">
+                        {bot.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Toggle Unknown */}
               <div className="flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-2xl">
                 <div className="space-y-0.5">
@@ -1490,10 +2160,10 @@ export function ContextPilotTab() {
                               ? `Write a friendly, conversational WhatsApp chat reply based on this local memory context:\n\n"${selectedMemory.content}"\n\nAdditional instructions: ${emailInstructions || 'Draft a friendly, concise WhatsApp reply (max 3 sentences)'}.\n\nKeep it very concise (max 3 sentences) and natural. Do not include subject lines, headers, placeholders, or sign-offs. Write the message content directly.`
                               : `Write a clean, professional email based on this local memory context:\n\n"${selectedMemory.content}"\n\nAdditional instructions: ${emailInstructions || 'Write a clean professional email reply'}.\n\nOutput only the email body. Do not include placeholders like '[Your Name]' or metadata outside the email content. Just start directly with the greeting.`;
                             const res = await executePromptViaApi(prompt, false, false, {
-                              useOllama: settings.useOllama,
+                              useOllama: true,
                               ollamaBaseUrl: settings.ollamaBaseUrl,
-                              ollamaModel: settings.ollamaModel,
-                              localEngine: settings.localEngine,
+                              ollamaModel: settings.ollamaModel || 'gemma2:2b',
+                              localEngine: settings.localEngine || 'ollama',
                               pythonServerUrl: settings.pythonServerUrl
                             });
                             if (res) {
@@ -1550,13 +2220,10 @@ export function ContextPilotTab() {
                       <Button
                         onClick={handleSendWaDirect}
                         disabled={sendingWa}
-                        className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl flex-1"
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl flex-1 animate-in fade-in"
                       >
-                        {sendingWa ? (
-                          <><Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> Sending...</>
-                        ) : (
-                          'Send Directly'
-                        )}
+                        {sendingWa ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+                        Send WhatsApp
                       </Button>
                       <Button
                         onClick={() => {
@@ -1596,6 +2263,120 @@ export function ContextPilotTab() {
             </div>
           );
         })()
+      )}
+
+      {/* Custom Bot Wizard Modal */}
+      {showAddBotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+          <div className="bg-[#0b0f19] border border-white/10 p-8 rounded-[2.5rem] max-w-lg w-full space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setShowAddBotModal(false)}
+              className="absolute top-6 right-6 text-slate-400 hover:text-white text-lg font-bold transition-colors"
+            >
+              ✕
+            </button>
+
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full border border-primary/20 text-primary text-[9px] font-black uppercase tracking-widest">
+                <Brain className="h-3 w-3" />
+                Custom Bot Wizard
+              </div>
+              <h3 className="text-2xl font-black text-white">Create Custom Assistant</h3>
+              <p className="text-xs text-slate-500">
+                Design a custom chatbot tailored for a specific startup operational role.
+              </p>
+            </div>
+
+            <form onSubmit={handleCreateCustomBot} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Bot Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Pitch Deck Critic, Legal Advisor"
+                  value={customBotName}
+                  onChange={e => setCustomBotName(e.target.value)}
+                  className="w-full bg-[#161b26] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Role / Title
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Chief Pitch Officer, Startup Attorney"
+                  value={customBotRole}
+                  onChange={e => setCustomBotRole(e.target.value)}
+                  className="w-full bg-[#161b26] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-primary/50"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  Select Bot Icon
+                </label>
+                <div className="grid grid-cols-7 gap-2">
+                  {['Brain', 'Video', 'MessageSquare', 'Users', 'Code', 'Globe', 'Zap'].map((iconName) => {
+                    const isSelected = customBotIcon === iconName;
+                    return (
+                      <button
+                        key={iconName}
+                        type="button"
+                        onClick={() => setCustomBotIcon(iconName)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-center transition-all ${
+                          isSelected
+                            ? 'bg-primary/20 border-primary text-primary scale-[1.05] shadow-glow'
+                            : 'bg-white/5 border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
+                        }`}
+                        title={iconName}
+                      >
+                        {renderBotIcon(iconName, 'h-4 w-4')}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                  System Instructions (System Prompt)
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Tell the bot how to behave, what tone to use, and how to analyze startup memory context..."
+                  value={customBotSystemPrompt}
+                  onChange={e => setCustomBotSystemPrompt(e.target.value)}
+                  className="w-full bg-[#161b26] border border-white/10 rounded-xl p-4 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 resize-none font-sans"
+                  style={{ color: 'white', WebkitTextFillColor: 'white' }}
+                  required
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setShowAddBotModal(false)}
+                  className="bg-white/5 hover:bg-white/10 text-white font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl flex-1 border border-white/10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-primary hover:bg-primary/95 text-primary-foreground font-black text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl flex-1"
+                >
+                  Create Bot
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -56,6 +56,7 @@ const pino = require('pino');
 
 let sock = null;
 let knownChats = { groups: [], privates: [] };
+const lastSentReplies = new Set();
 
 async function updateChatsList() {
   if (!sock) return;
@@ -145,11 +146,13 @@ async function connectToWhatsApp() {
 
   // Listen for incoming messages
   sock.ev.on('messages.upsert', async (m) => {
+    console.log(`[WhatsApp DEBUG] messages.upsert event received, type: ${m?.type}, messages count: ${m?.messages?.length}`);
     if (m.type === 'notify') {
       for (const msg of m.messages) {
+        console.log(`[WhatsApp DEBUG] Processing message key: ${JSON.stringify(msg.key)}, hasMessage: ${!!msg.message}`);
         if (msg.message) {
-          const from = msg.key.remoteJid;
-          const isPrivate = from.endsWith('@s.whatsapp.net');
+          const from = msg.key.remoteJidAlt || msg.key.remoteJid;
+          const isPrivate = from.endsWith('@s.whatsapp.net') || from.endsWith('@lid');
           const isGroup = from.endsWith('@g.us');
           const text = msg.message.conversation || 
                        msg.message.extendedTextMessage?.text || 
@@ -157,9 +160,155 @@ async function connectToWhatsApp() {
                        "";
           const senderName = msg.key.fromMe ? 'Me' : (msg.pushName || from.split('@')[0]);
 
+          console.log(`[WhatsApp DEBUG] Resolved text: "${text}", fromMe: ${msg.key.fromMe}, isPrivate: ${isPrivate}, isGroup: ${isGroup}`);
+
           if (text.trim().length > 0) {
             console.log(`[WhatsApp] ${msg.key.fromMe ? 'Outgoing' : 'Incoming'} from ${senderName}: ${text}`);
             
+            const myJid = sock?.user?.id ? sock.user.id.split('@')[0].split(':')[0] : '';
+            const myJidFull = sock?.user?.id ? sock.user.id.split(':')[0] + '@s.whatsapp.net' : '';
+            const isSelfChat = from.split('@')[0] === myJid || from === myJidFull;
+            const isAllowedCommand = !msg.key.fromMe || isSelfChat;
+
+            const cleanText = text.trim();
+
+            // Check for Context Clearing Command from WhatsApp!
+            const isClearCommand = (
+              cleanText.startsWith('/') && (
+                cleanText.toLowerCase().startsWith('/clearcontext') || 
+                cleanText.toLowerCase().startsWith('/clear')
+              )
+            ) || (
+              cleanText.toLowerCase() === 'clear memories' ||
+              cleanText.toLowerCase() === 'clear context'
+            );
+
+            if (isClearCommand && isAllowedCommand) {
+              try {
+                console.log('[WhatsApp] Clear memories command triggered.');
+                const clearRes = await fetch('http://127.0.0.1:8001/memories', {
+                  method: 'DELETE'
+                });
+                if (clearRes.ok) {
+                  await sock.sendMessage(from, { text: "🧹 Context memories database has been cleared successfully!" }, { quoted: msg });
+                } else {
+                  await sock.sendMessage(from, { text: "⚠️ Failed to clear context memories." }, { quoted: msg });
+                }
+                continue;
+              } catch (clearErr) {
+                console.error('[WhatsApp] Failed to clear memories:', clearErr.message);
+                await sock.sendMessage(from, { text: `❌ Error clearing memories: ${clearErr.message}` }, { quoted: msg });
+                continue;
+              }
+            }
+
+            // Check for Chatbot Creation Command from WhatsApp!
+            const isCreationCommand = (
+              cleanText.startsWith('/') && (
+                cleanText.toLowerCase().startsWith('/createbot') || 
+                cleanText.toLowerCase().startsWith('/newbot')
+              )
+            ) || (
+              cleanText.toLowerCase().startsWith('create bot') || 
+              cleanText.toLowerCase().startsWith('create chatbot')
+            );
+
+            if (isCreationCommand && isAllowedCommand) {
+              try {
+                let botName = "";
+                let botRole = "";
+                let botPrompt = "";
+
+                const nameMatch = cleanText.match(/(?:name|Name)\s*:\s*([^|,\n]+)/);
+                const roleMatch = cleanText.match(/(?:role|Role)\s*:\s*([^|,\n]+)/);
+                const promptMatch = cleanText.match(/(?:prompt|Prompt|instructions|Instructions)\s*:\s*([\s\S]+)/);
+
+                if (nameMatch && roleMatch && promptMatch) {
+                  botName = nameMatch[1].trim();
+                  botRole = roleMatch[1].trim();
+                  botPrompt = promptMatch[1].trim();
+                } else {
+                  // Fallback positional parse: split by comma/pipe after removing command prefix
+                  const cleanCmd = cleanText.replace(/^([\/!]createbot|[\/!]newbot|create chatbot|create bot)\s*/i, '').trim();
+                  const parts = cleanCmd.split(/[,|]/);
+                  if (parts.length >= 3) {
+                    botName = parts[0].trim();
+                    botRole = parts[1].trim();
+                    botPrompt = parts.slice(2).join(',').trim();
+                  }
+                }
+
+                if (!botName || !botRole || !botPrompt) {
+                  const helpMessage = `⚠️ *Failed to create bot.*\n\n*Required format:* \`/createbot Name: [Name] | Role: [Role] | Prompt: [System Prompt]*\n\n*Example:* \`/createbot Name: Legal Advisor | Role: Attorney | Prompt: You are a startup lawyer. Use past memory records to advise on contracts.\``;
+                  await sock.sendMessage(from, { text: helpMessage }, { quoted: msg });
+                  continue;
+                }
+
+                // Load config to update
+                const configPath = path.join(__dirname, 'whatsapp-config.json');
+                let config = { autoReplyUnknown: true, autoReplyGroups: false, selectedContacts: [], knownContacts: [], activeAutoReplyBotId: 'customer', bots: [] };
+                if (fs.existsSync(configPath)) {
+                  try {
+                    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+                  } catch (e) {}
+                }
+
+                // If config.bots is empty or not loaded, initialize default ones
+                if (!config.bots || config.bots.length === 0) {
+                  config.bots = [
+                    {
+                      id: 'meeting',
+                      name: 'Meeting Summarizer',
+                      role: 'Meeting Intelligence Officer',
+                      systemPrompt: 'You are a meeting assistant. Analyze startup meeting transcripts and zoom logs. Extract key decisions, action items, assignees, and deadlines. Use context memories to answer accurately.',
+                      icon: 'Video',
+                      color: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+                    },
+                    {
+                      id: 'customer',
+                      name: 'Customer Support Bot',
+                      role: 'CRM & Client Success Manager',
+                      systemPrompt: 'You are a customer success specialist. Answer customer queries, write email/WhatsApp responses, and resolve support tickets using past interaction memories. Keep it friendly and professional.',
+                      icon: 'MessageSquare',
+                      color: 'text-green-400 bg-green-500/10 border-green-500/20'
+                    },
+                    {
+                      id: 'employee',
+                      name: 'Team & HR Operations',
+                      role: 'HR Manager & Employee Coach',
+                      systemPrompt: 'You are a startup HR manager. Create onboarding steps, write job descriptions, answer policy questions, and resolve operations questions using startup memories. Keep it clear and supportive.',
+                      icon: 'Users',
+                      color: 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+                    }
+                  ];
+                }
+
+                const newBot = {
+                  id: 'custom-' + Date.now(),
+                  name: botName,
+                  role: botRole,
+                  description: `Custom startup assistant for ${botRole}.`,
+                  systemPrompt: botPrompt,
+                  icon: 'Brain',
+                  color: 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+                };
+
+                config.bots.push(newBot);
+                config.activeAutoReplyBotId = newBot.id;
+
+                fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+                const successMessage = `🤖 *Chatbot Created successfully!*\n\n*Name*: ${newBot.name}\n*Role*: ${newBot.role}\n*Instructions*: ${newBot.systemPrompt}\n\nThis agent is now registered and set as your active WhatsApp auto-reply responder.`;
+                await sock.sendMessage(from, { text: successMessage }, { quoted: msg });
+                console.log(`[WhatsApp] Created and activated bot: ${botName}`);
+                continue;
+              } catch (createErr) {
+                console.error('[WhatsApp] Failed to create bot from command:', createErr.message);
+                await sock.sendMessage(from, { text: `❌ Error creating bot: ${createErr.message}` }, { quoted: msg });
+                continue;
+              }
+            }
+
             // 1. Index the message in context_server
             try {
               const res = await fetch('http://127.0.0.1:8001/memories', {
@@ -203,7 +352,14 @@ async function connectToWhatsApp() {
             }
 
             // 2. Auto-reply contextually (for private incoming messages or group messages if configured)
-            if (!msg.key.fromMe && (isPrivate || isGroup) && text.trim().length > 1) {
+            const isBotSelfMessage = msg.key.fromMe && lastSentReplies.has(text.trim());
+
+            // Reply if it's not our own bot message AND (it's from someone else OR it is a self-chat)
+            const isAllowedSender = !msg.key.fromMe || (isSelfChat && !isBotSelfMessage);
+
+            console.log(`[WhatsApp DEBUG] Sender check: JID="${from}", myJid="${myJid}", myJidFull="${myJidFull}", isSelfChat=${isSelfChat}, isBotSelfMessage=${isBotSelfMessage}, isAllowedSender=${isAllowedSender}`);
+
+            if (isAllowedSender && (isPrivate || isGroup) && text.trim().length > 1) {
               try {
                 // Read configuration dynamically to avoid restarting service on settings update
                 let config = { autoReplyUnknown: true, autoReplyGroups: false, selectedContacts: [], knownContacts: [] };
@@ -249,12 +405,22 @@ async function connectToWhatsApp() {
                   }
                 }
 
-                const isSelected = config.selectedContacts.includes(phoneNumber) || 
+                const cleanPhoneNoCountry = phoneNumber.length > 10 ? phoneNumber.slice(-10) : phoneNumber;
+                const matchesPhone = (list) => {
+                  return list.some(contact => {
+                    const cleanContact = contact.replace(/[^0-9]/g, '');
+                    if (!cleanContact) return false;
+                    const cleanContact10 = cleanContact.length > 10 ? cleanContact.slice(-10) : cleanContact;
+                    return cleanContact10 === cleanPhoneNoCountry;
+                  });
+                };
+
+                const isSelected = matchesPhone(config.selectedContacts) || 
                                    config.selectedContacts.includes(senderName) || 
                                    config.selectedContacts.includes(from) ||
                                    (isPrivate && cachedContactName && config.selectedContacts.includes(cachedContactName)) ||
                                    (isGroup && groupName && config.selectedContacts.includes(groupName));
-                const isKnown = config.knownContacts.includes(phoneNumber) || 
+                const isKnown = matchesPhone(config.knownContacts) || 
                                 config.knownContacts.includes(senderName) || 
                                 config.knownContacts.includes(from) ||
                                 (isPrivate && cachedContactName && config.knownContacts.includes(cachedContactName)) ||
@@ -284,6 +450,8 @@ async function connectToWhatsApp() {
                   shouldReply = isSelected || (isBotMentioned && !isKnown);
                 }
 
+                console.log(`[WhatsApp DEBUG] Auto-reply evaluation: isSelected=${isSelected}, isKnown=${isKnown}, autoReplyUnknown=${config.autoReplyUnknown}, shouldReply=${shouldReply}`);
+
                 if (!shouldReply) {
                   if (isGroup) {
                     console.log(`[WhatsApp] Skipping group auto-reply for JID ${from} (Bot mentioned: ${isBotMentioned}, isKnown/Ignored: ${isKnown}).`);
@@ -309,16 +477,56 @@ async function connectToWhatsApp() {
                   contextText = memories.map(m => `[From ${m.source_app}]: ${m.content}`).join('\n\n');
                 }
 
-                // Call Next.js Chat API to generate response
-                const prompt = `You are a helpful personal assistant replying to a WhatsApp message in a ${isGroup ? 'group' : 'private'} chat. Use the provided context (which contains the user's past emails, notes, messages, and browser history) to reply accurately and contextually. Keep the reply concise (max 3 sentences), friendly, and natural. Do not mention that you are an AI or using search context unless asked.
+                // Determine which bot system prompt to use
+                let activeBot = config.bots?.find(b => b.id === config.activeAutoReplyBotId) || config.bots?.find(b => b.id === 'customer');
+                if (!activeBot) {
+                  activeBot = {
+                    name: 'Customer Support Bot',
+                    role: 'CRM & Client Success Manager',
+                    systemPrompt: 'You are a customer success specialist. Answer customer queries, write email/WhatsApp responses, and resolve support tickets using past interaction memories. Keep it friendly and professional.'
+                  };
+                }
 
-Context:
-${contextText || 'No context memories found.'}
+                // Auto-route to Meeting Summarizer if keywords match
+                const lowerText = text.toLowerCase();
+                if (lowerText.includes('meeting') || lowerText.includes('summary') || lowerText.includes('transcript') || lowerText.includes('action items')) {
+                  const meetingBot = config.bots?.find(b => b.id === 'meeting');
+                  if (meetingBot) {
+                    activeBot = meetingBot;
+                  }
+                }
 
-Incoming Message from ${senderName}:
-"${text}"
+                // Compile structured product catalog if present on activeBot
+                let catalogText = '';
+                if (activeBot.products && Array.isArray(activeBot.products) && activeBot.products.length > 0) {
+                  catalogText = activeBot.products.map((p, index) => {
+                    return `Product #${index + 1}: ${p.name}
+Price: ${p.price}
+Image Link: ${p.imageUrl || 'None'}
+Description: ${p.description}`;
+                  }).join('\n\n');
+                }
 
-Write the response directly.`;
+                console.log(`[WhatsApp] Auto-reply using agent prompt for '${activeBot.name}' (${activeBot.role})`);
+
+                 // Call Next.js Chat API to generate response
+                 const prompt = `System Instructions:
+ You are the '${activeBot.name}' (Role: ${activeBot.role}). ${activeBot.systemPrompt}
+ 
+ ${catalogText ? `Here is the structured Product Catalog for your startup. Use this information as your absolute source of truth when answering questions about products, rates, pricing, and availability:
+ ${catalogText}
+ 
+ If the user asks about products, pricing, or details, recommend the appropriate product, cite its price, and list the exact "Image Link" URL from the catalog in your response (so the system can deliver it).` : ''}
+ 
+ Use the provided context (which contains past emails, notes, messages, and browser history) to reply accurately and contextually. Keep the reply concise (max 3 sentences), friendly, and natural. Do not mention that you are an AI or using search context unless asked.
+ 
+ Context:
+ ${contextText || 'No context memories found.'}
+ 
+ Incoming Message from ${senderName} in a ${isGroup ? 'group' : 'private'} chat:
+ "${text}"
+ 
+ CRITICAL LANGUAGE REQUIREMENT: You MUST reply in the same language as the incoming message. For example, if the incoming message is in Tamil, your response MUST be in Tamil. If the incoming message is in Hindi, your response MUST be in Hindi. If the incoming message is in English, your response MUST be in English. Do not write any labels like "English:" or "Tamil:". Write ONLY the direct message content in that language.`;
 
                 const chatRes = await fetch('http://127.0.0.1:9002/api/context/chat', {
                   method: 'POST',
@@ -331,7 +539,23 @@ Write the response directly.`;
                   const reply = chatData.reply;
                   if (reply && reply.trim()) {
                     console.log(`[WhatsApp] Auto-replying to ${senderName} (${from}): ${reply}`);
-                    await sock.sendMessage(from, { text: reply }, { quoted: msg });
+                    lastSentReplies.add(reply.trim());
+                    if (lastSentReplies.size > 50) {
+                      const first = lastSentReplies.values().next().value;
+                      lastSentReplies.delete(first);
+                    }
+
+                    // Extract image URL from response if present
+                    const imageUrlRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp)(?:\?[^\s]*)?)/i;
+                    const match = reply.match(imageUrlRegex);
+                    if (match) {
+                      const imageUrl = match[1];
+                      const caption = reply.replace(imageUrl, '').trim();
+                      console.log(`[WhatsApp] Auto-reply media image detected: ${imageUrl}`);
+                      await sock.sendMessage(from, { image: { url: imageUrl }, caption: caption }, { quoted: msg });
+                    } else {
+                      await sock.sendMessage(from, { text: reply }, { quoted: msg });
+                    }
                   }
                 } else {
                   console.error('[WhatsApp] Chat API failed:', await chatRes.text());
@@ -422,7 +646,23 @@ const server = http.createServer((req, res) => {
         }
 
         console.log(`[WhatsApp] Sending message via API to ${jid}: ${text}`);
-        await sock.sendMessage(jid, { text });
+        lastSentReplies.add(text.trim());
+        if (lastSentReplies.size > 50) {
+          const first = lastSentReplies.values().next().value;
+          lastSentReplies.delete(first);
+        }
+
+        // Extract image URL from manual message if present
+        const imageUrlRegex = /(https?:\/\/[^\s]+?\.(?:png|jpg|jpeg|webp)(?:\?[^\s]*)?)/i;
+        const match = text.match(imageUrlRegex);
+        if (match) {
+          const imageUrl = match[1];
+          const caption = text.replace(imageUrl, '').trim();
+          console.log(`[WhatsApp] API send media image detected: ${imageUrl}`);
+          await sock.sendMessage(jid, { image: { url: imageUrl }, caption: caption });
+        } else {
+          await sock.sendMessage(jid, { text });
+        }
 
         // Index the outgoing message in context_server as well
         try {

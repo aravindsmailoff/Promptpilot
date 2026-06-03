@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   instantCopy: true,
   toneProfile: 'professional',
   manualModelOverride: false,
-  useOllama: false,
+  useOllama: true,
   ollamaBaseUrl: 'http://127.0.0.1:11434',
   ollamaModel: 'gemma2:2b',
   localEngine: 'ollama',

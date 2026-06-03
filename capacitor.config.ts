@@ -8,10 +8,9 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https',
     cleartext: true,
-    url: 'http://10.0.2.2:9002',
+    url: 'http://192.168.1.50:9002',
     allowNavigation: [
-      '10.0.2.2',
-      'localhost',
+      '192.168.1.50',
       '*.google.com',
       '*.googleusercontent.com',
       'accounts.google.com'

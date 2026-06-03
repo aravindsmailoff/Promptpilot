@@ -9,7 +9,9 @@ function getDefaultConfig() {
     autoReplyUnknown: true,
     autoReplyGroups: false,
     selectedContacts: [] as string[],
-    knownContacts: [] as string[]
+    knownContacts: [] as string[],
+    activeAutoReplyBotId: 'customer',
+    bots: [] as any[]
   };
 }
 
@@ -32,7 +34,9 @@ export async function POST(req: NextRequest) {
       autoReplyUnknown: body.autoReplyUnknown ?? true,
       autoReplyGroups: body.autoReplyGroups ?? false,
       selectedContacts: Array.isArray(body.selectedContacts) ? body.selectedContacts : [],
-      knownContacts: Array.isArray(body.knownContacts) ? body.knownContacts : []
+      knownContacts: Array.isArray(body.knownContacts) ? body.knownContacts : [],
+      activeAutoReplyBotId: body.activeAutoReplyBotId || 'customer',
+      bots: Array.isArray(body.bots) ? body.bots : []
     };
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
     return NextResponse.json({ success: true, config });
