@@ -4,18 +4,7 @@ const config: CapacitorConfig = {
   appId: 'com.promptpilot.app',
   appName: 'PromptPilot',
   webDir: 'out',
-  overrideUserAgent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36',
-  server: {
-    androidScheme: 'https',
-    cleartext: true,
-    url: 'http://192.168.1.50:9002',
-    allowNavigation: [
-      '192.168.1.50',
-      '*.google.com',
-      '*.googleusercontent.com',
-      'accounts.google.com'
-    ]
-  },
+  overrideUserAgent: 'PromptPilot/1.0 (Android; Mobile)',
   backgroundColor: '#020617',
   plugins: {
     SplashScreen: {
@@ -26,6 +15,10 @@ const config: CapacitorConfig = {
       showSpinner: true,
       spinnerColor: '#3b82f6'
     }
+  },
+  server: {
+    url: 'https://drudgingly-unshivered-sarah.ngrok-free.dev',
+    cleartext: true
   }
 };
 

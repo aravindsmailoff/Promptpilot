@@ -1,7 +1,84 @@
 const { spawn } = require('child_process');
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
+const ngrok = require('@ngrok/ngrok');
 
 const isWindows = process.platform === 'win32';
+
+// Starts Ngrok Tunnel on port 9002 using the static domain and authtoken
+function startTunnel() {
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('\x1b[34m[Tunnel] Starting Ngrok Tunnel on port 9002...\x1b[0m');
+      
+      ngrok.forward({
+        addr: 9002,
+        authtoken: '33E8pSxAQ7L2zzp3HkXHhagbZZ2_5tdkdjAhPF3aVG5hhQk23',
+        domain: 'drudgingly-unshivered-sarah.ngrok-free.dev'
+      }).then((listener) => {
+        const url = listener.url();
+        console.log('\n\x1b[36m╔══════════════════════════════════════════════════╗\x1b[0m');
+        console.log(`\x1b[36m║     Ngrok Tunnel URL successfully established:   ║\x1b[0m`);
+        console.log(`\x1b[36m║  \x1b[4m${url}\x1b[24m  ║\x1b[0m`);
+        console.log('\x1b[36m╚══════════════════════════════════════════════════╝\x1b[0m\n');
+        
+        resolve({ url, tunnelObj: listener });
+      }).catch((err) => {
+        console.error('\x1b[31m[Tunnel - ERR] Ngrok startup error:\x1b[0m', err);
+        reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function updateConfigFiles(newUrl) {
+  const newDomain = newUrl.replace('https://', '').replace('http://', '');
+  
+  // Update .env and .env.local
+  const envFiles = ['.env', '.env.local'];
+  envFiles.forEach(file => {
+    const filePath = path.join(__dirname, file);
+    if (fs.existsSync(filePath)) {
+      try {
+        let content = fs.readFileSync(filePath, 'utf8');
+        // Match NEXTAUTH_URL=... and update
+        const regexGeneric = /NEXTAUTH_URL=[^\r\n]+/g;
+        if (regexGeneric.test(content)) {
+          content = content.replace(regexGeneric, `NEXTAUTH_URL=${newUrl}`);
+          fs.writeFileSync(filePath, content, 'utf8');
+          console.log(`\x1b[32m[Config] Successfully updated ${file} with new Tunnel URL.\x1b[0m`);
+        } else {
+          console.log(`\x1b[33m[Config] NEXTAUTH_URL not found in ${file}. Skipping...\x1b[0m`);
+        }
+      } catch (err) {
+        console.error(`\x1b[31m[Config - ERR] Failed to update ${file}:\x1b[0m`, err.message);
+      }
+    }
+  });
+
+  // Update capacitor.config.ts
+  const capacitorPath = path.join(__dirname, 'capacitor.config.ts');
+  if (fs.existsSync(capacitorPath)) {
+    try {
+      let content = fs.readFileSync(capacitorPath, 'utf8');
+      
+      // Replace references to trycloudflare and ngrok subdomains in capacitor.config.ts
+      const regexSubdomain = /[a-zA-Z0-9-]+\.(trycloudflare\.com|ngrok-free\.dev|ngrok-free\.app)/g;
+      if (regexSubdomain.test(content)) {
+        content = content.replace(regexSubdomain, newDomain);
+        fs.writeFileSync(capacitorPath, content, 'utf8');
+        console.log(`\x1b[32m[Config] Successfully updated capacitor.config.ts with new Tunnel domain (${newDomain}).\x1b[0m`);
+      } else {
+        console.log(`\x1b[33m[Config] No matching tunnel domains found in capacitor.config.ts to replace.\x1b[0m`);
+      }
+    } catch (err) {
+      console.error(`\x1b[31m[Config - ERR] Failed to update capacitor.config.ts:\x1b[0m`, err.message);
+    }
+  }
+}
 
 function checkPort(port) {
   return new Promise((resolve) => {
@@ -65,7 +142,7 @@ function runProcess(command, args, prefix, colorCode) {
 
 async function main() {
   console.log('\x1b[35m╔══════════════════════════════════════════════════╗\x1b[0m');
-  console.log('\x1b[35m║             ContextPilot MVP Launcher            ║\x1b[0m');
+  console.log('\x1b[35m║             PromptPilot MVP Launcher             ║\x1b[0m');
   console.log('\x1b[35m║       Starting Server, Daemon & Dashboard        ║\x1b[0m');
   console.log('\x1b[35m╚══════════════════════════════════════════════════╝\x1b[0m\n');
 
@@ -73,12 +150,19 @@ async function main() {
   let daemon = null;
   let waService = null;
   let nextjs = null;
+  let tunnelObj = null;
 
   let exiting = false;
   const cleanExit = () => {
     if (exiting) return;
     exiting = true;
     console.log('\n\x1b[31m[Launcher] Stopping all services...\x1b[0m');
+    if (tunnelObj) {
+      try {
+        console.log('\x1b[31m[Launcher] Stopping Ngrok Tunnel...\x1b[0m');
+        tunnelObj.close();
+      } catch (e) {}
+    }
     killProcessTree(server);
     killProcessTree(daemon);
     killProcessTree(waService);
@@ -88,6 +172,16 @@ async function main() {
 
   process.on('SIGINT', cleanExit);
   process.on('SIGTERM', cleanExit);
+
+  // Start Ngrok Tunnel first, and update configuration files
+  try {
+    const res = await startTunnel();
+    tunnelObj = res.tunnelObj;
+    updateConfigFiles(res.url);
+  } catch (err) {
+    console.error('\x1b[31m[Launcher - ERR] Failed to start tunnel or update configs:\x1b[0m', err);
+    console.log('\x1b[33mContinuing dev server startup without tunnel...\x1b[0m');
+  }
 
   // 1. Check & Start Server on Port 8001
   const serverInUse = await checkPort(8001);

@@ -870,10 +870,10 @@ export function ContextPilotTab() {
       <div className="text-center space-y-4 pt-2">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.2)]">
           <Brain className="h-3 w-3 animate-pulse" />
-          Startup Workspace Assistant
+          Startup CRM & Memory Center
         </div>
         <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-none">
-          Context<span className="text-primary text-glow">Pilot</span>
+          Memory <span className="text-primary text-glow">CRM</span>
         </h2>
         <p className="text-slate-400 text-base max-w-xl mx-auto">
           Train custom local agents on your Zoom meetings, client chats, and emails. Powered by Gemma.

@@ -10,7 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "cd ..\\selenium_tests && pytest -v"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.2",
@@ -66,9 +67,11 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
     "@types/node": "^20",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
+    "cloudflared": "^0.7.1",
     "genkit-cli": "^1.28.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",

@@ -52,7 +52,7 @@ export default function Home() {
 
                 <TabsTrigger value="context" className="rounded-full px-8 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
                   <Brain className="h-4 w-4" />
-                  ContextPilot
+                  CRM
                 </TabsTrigger>
 
                 <TabsTrigger value="directory" className="rounded-full px-8 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all flex items-center gap-2">
@@ -104,7 +104,7 @@ export default function Home() {
         {[
           { id: 'home', icon: HomeIcon, label: 'Home' },
           { id: 'history', icon: History, label: 'History' },
-          { id: 'context', icon: Brain, label: 'Context' },
+          { id: 'context', icon: Brain, label: 'CRM' },
           { id: 'directory', icon: LayoutGrid, label: 'Fleet' },
           { id: 'settings', icon: Settings, label: 'Settings' },
         ].map((item) => (
