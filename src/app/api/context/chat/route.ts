@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeOllamaChat } from '@/ai/ollama';
 import { executePythonChat } from '@/ai/python-server';
+import { hfClient } from '@/ai/huggingface';
 import fs from 'fs';
 import path from 'path';
 
@@ -33,40 +34,51 @@ export async function POST(req: NextRequest) {
     let reply = '';
     const localEngine = settings.localEngine || 'ollama';
 
+    // Hybrid execution: try local first, fall back to Hugging Face Cloud Gemma 2b
+    let success = false;
+
     if (settings.useOllama) {
-      if (localEngine === 'python') {
-        const activeUrl = settings.pythonServerUrl || 'http://127.0.0.1:8000';
-        reply = await executePythonChat(
-          activeUrl,
-          [
-            { role: 'user', content: prompt }
-          ],
-          0.4
-        );
-      } else {
-        const activeModel = settings.ollamaModel || 'gemma2:2b';
-        const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-        reply = await executeOllamaChat(
-          activeUrl,
-          activeModel,
-          [
-            { role: 'user', content: prompt }
-          ],
-          0.4
-        );
+      try {
+        if (localEngine === 'python') {
+          const activeUrl = settings.pythonServerUrl || 'http://127.0.0.1:8000';
+          console.log('[Chat API] Running local Gemma via Python server...');
+          reply = await executePythonChat(
+            activeUrl,
+            [
+              { role: 'user', content: prompt }
+            ],
+            0.4
+          );
+          success = true;
+        } else {
+          const activeModel = settings.ollamaModel || 'gemma2:2b';
+          const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+          console.log(`[Chat API] Running local Gemma via Ollama model: ${activeModel}...`);
+          reply = await executeOllamaChat(
+            activeUrl,
+            activeModel,
+            [
+              { role: 'user', content: prompt }
+            ],
+            0.4
+          );
+          success = true;
+        }
+      } catch (localErr) {
+        console.warn('[Chat API] Local Gemma server is offline, falling back to Hugging Face cloud Gemma 2b...');
       }
-    } else {
-      // Fallback local execution
-      const activeModel = settings.ollamaModel || 'gemma2:2b';
-      const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-      reply = await executeOllamaChat(
-        activeUrl,
-        activeModel,
-        [
+    }
+
+    if (!success) {
+      console.log('[Chat API] Running Cloud Gemma 2b via Hugging Face...');
+      const response = await hfClient.chat.completions.create({
+        model: 'google/gemma-2-2b-it',
+        messages: [
           { role: 'user', content: prompt }
         ],
-        0.4
-      );
+        temperature: 0.4
+      });
+      reply = response.choices[0]?.message?.content || '';
     }
 
     // Clean up reasonings/thoughts

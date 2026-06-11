@@ -886,12 +886,12 @@ export function ContextPilotTab() {
           ? 'bg-white/5 border-white/10 text-slate-400'
           : serverOnline
           ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-          : 'bg-red-500/10 border-red-500/20 text-red-400'
+          : 'bg-blue-500/10 border-blue-500/20 text-blue-400'
       }`}>
-        <div className={`w-2 h-2 rounded-full ${serverOnline ? 'bg-emerald-400 animate-pulse' : serverOnline === false ? 'bg-red-400' : 'bg-yellow-400 animate-pulse'}`} />
+        <div className={`w-2 h-2 rounded-full ${serverOnline ? 'bg-emerald-400 animate-pulse' : serverOnline === false ? 'bg-blue-400 animate-pulse' : 'bg-yellow-400 animate-pulse'}`} />
         {serverOnline === null && 'Connecting to context_server.py...'}
         {serverOnline === true  && `✓ context_server.py online · ${stats?.total ?? 0} memories indexed`}
-        {serverOnline === false && 'context_server.py offline — Run: python context_server.py'}
+        {serverOnline === false && `☁️ Cloud CRM Active (using PostgreSQL) · ${stats?.total ?? 0} memories indexed`}
         <Button variant="ghost" size="sm" className="ml-auto h-7 px-3 text-xs" onClick={fetchStats}>
           <RefreshCw className="h-3 w-3 mr-1" /> Refresh
         </Button>

@@ -196,6 +196,12 @@ async function main() {
     // Start Daemon
     daemon = runProcess('python', ['context_daemon.py'], 'Daemon', '33');
 
+    // Clean up all services when daemon is stopped (e.g., Quit from System Tray)
+    daemon.on('exit', (code) => {
+      console.log('\x1b[31m[Launcher] System tray daemon exited. Cleaning up all other services...\x1b[0m');
+      cleanExit();
+    });
+
     // Check & Start WhatsApp Service on Port 8002
     const waInUse = await checkPort(8002);
     if (waInUse) {

@@ -80,3 +80,15 @@ model ModelSubmission {
   createdAt   DateTime @default(now())
   user        User?    @relation(fields: [userId], references: [id])
 }
+
+model Memory {
+  id          String   @id @default(cuid())
+  content     String
+  source      String   @default("manual")
+  sourceApp   String   @default("unknown")
+  createdAt   DateTime @default(now())
+  metadata    String   @default("{}")
+  contentHash String   @unique
+  embedding   Float[]
+}
+

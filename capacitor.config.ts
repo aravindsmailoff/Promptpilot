@@ -17,7 +17,7 @@ const config: CapacitorConfig = {
     }
   },
   server: {
-    url: 'https://drudgingly-unshivered-sarah.ngrok-free.dev',
+    url: 'https://promptpilot-jet.vercel.app',
     cleartext: true
   }
 };
