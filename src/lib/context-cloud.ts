@@ -249,7 +249,7 @@ export function parseZoomTranscript(text: string): Array<{ content: string; meta
     const body = match[2];
     const content = body.replace(/<[^>]+>/g, '').trim();
     if (content && content.length > 5) {
-      segments.push({ content: `[Zoom] ${content}`, meta: { timestamp: ts.strip ? ts.trim() : ts } });
+      segments.push({ content: `[Zoom] ${content}`, meta: { timestamp: ts.trim() } });
     }
   }
 
