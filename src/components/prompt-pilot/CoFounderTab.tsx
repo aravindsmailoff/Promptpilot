@@ -519,27 +519,79 @@ export function InvestorsResult({ data }: { data: any }) {
       </div>
 
       <div className="space-y-3">
-        {data.investorTargets?.map((inv: any, i: number) => (
-          <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/30 transition-colors">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-black text-white">{inv.name}</span>
-                  <Badge className="bg-primary/20 text-primary text-[9px] px-2 py-0.5">{inv.type}</Badge>
-                  <Badge className="bg-white/10 text-white/60 text-[9px] px-2 py-0.5">{inv.geography}</Badge>
+        {data.investorTargets?.map((inv: any, i: number) => {
+          // Look up details from our static database
+          const cleanName = inv.name.toLowerCase();
+          const details = INVESTORS.find(item => {
+            const itemName = item.name.toLowerCase();
+            return itemName.includes(cleanName) || cleanName.includes(itemName) ||
+              (itemName.includes('sequoia') && cleanName.includes('sequoia')) ||
+              (itemName.includes('accel') && cleanName.includes('accel')) ||
+              (itemName.includes('matrix') && cleanName.includes('matrix')) ||
+              (itemName.includes('blume') && cleanName.includes('blume')) ||
+              (itemName.includes('kalaari') && cleanName.includes('kalaari')) ||
+              (itemName.includes('elevation') && cleanName.includes('elevation')) ||
+              (itemName.includes('nexus') && cleanName.includes('nexus')) ||
+              (itemName.includes('lightspeed') && cleanName.includes('lightspeed')) ||
+              (itemName.includes('3one4') && cleanName.includes('3one4')) ||
+              (itemName.includes('quotient') && cleanName.includes('quotient')) ||
+              (itemName.includes('stellaris') && cleanName.includes('stellaris')) ||
+              (itemName.includes('y combinator') && cleanName.includes('yc')) ||
+              (itemName.includes('andreessen') && cleanName.includes('a16z')) ||
+              (itemName.includes('benchmark') && cleanName.includes('benchmark')) ||
+              (itemName.includes('first round') && cleanName.includes('first round'));
+          });
+
+          return (
+            <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:border-primary/30 transition-colors">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-black text-white">{details ? details.name : inv.name}</span>
+                    <Badge className="bg-primary/20 text-primary text-[9px] px-2 py-0.5">{details ? details.type : inv.type}</Badge>
+                    <Badge className="bg-white/10 text-white/60 text-[9px] px-2 py-0.5">{details ? details.geography : inv.geography}</Badge>
+                  </div>
+                  <p className="text-white/60 text-xs">{inv.fitReason}</p>
+                  <p className="text-white/40 text-xs mt-1">Portfolio match: <span className="text-cyan-400">{inv.portfolioMatch}</span></p>
+                  
+                  {inv.contactStrategy && (
+                    <div className="mt-2 p-2 bg-black/25 rounded-lg border border-white/5 text-[11px] text-amber-400 font-medium">
+                      ⚡ <strong>Strategy:</strong> {inv.contactStrategy}
+                    </div>
+                  )}
                 </div>
-                <p className="text-white/60 text-xs">{inv.fitReason}</p>
-                <p className="text-white/40 text-xs mt-1">Portfolio match: <span className="text-cyan-400">{inv.portfolioMatch}</span></p>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-2xl font-black" style={{ color: inv.fitScore >= 80 ? "#22c55e" : inv.fitScore >= 60 ? "#eab308" : "#f87171" }}>
+                    {inv.fitScore}
+                  </div>
+                  <div className="text-[9px] text-white/30 uppercase tracking-widest">FIT SCORE</div>
+                </div>
               </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-2xl font-black" style={{ color: inv.fitScore >= 80 ? "#22c55e" : inv.fitScore >= 60 ? "#eab308" : "#f87171" }}>
-                  {inv.fitScore}
+
+              {/* Contact details footer */}
+              <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-white/5">
+                <div className="flex gap-3">
+                  {details?.website && (
+                    <a href={details.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:text-primary/80 text-xs font-black flex items-center gap-1">
+                      Visit Website <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                  {details?.email && (
+                    <a href={`mailto:${details.email}`} className="text-cyan-400 hover:text-cyan-300 text-xs font-black flex items-center gap-1">
+                      Email: {details.email}
+                    </a>
+                  )}
+                  {!details?.website && !details?.email && (
+                    <span className="text-white/40 text-xs italic">Search on Google / LinkedIn to contact</span>
+                  )}
                 </div>
-                <div className="text-[9px] text-white/30 uppercase tracking-widest">FIT SCORE</div>
+                {details?.ticketSize && (
+                  <span className="text-[10px] text-white/40">Ticket: <strong className="text-white/80">{details.ticketSize}</strong></span>
+                )}
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {data.coldEmailTemplate && (
@@ -621,9 +673,9 @@ export function SchemesResult({ data }: { data: any }) {
           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-2">⚡ DO THIS FIRST: DPIIT RECOGNITION</p>
           <p className="text-white/80 text-sm mb-2">{data.dpiitRegistrationGuide.benefit}</p>
           <p className="text-white/60 text-xs">{data.dpiitRegistrationGuide.howToApply}</p>
-          <a href="https://www.startupindia.gov.in" target="_blank" rel="noopener noreferrer"
+          <a href="https://www.startupindia.gov.in/content/sih/en/startupgov/startup-recognition-page.html" target="_blank" rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-1 text-amber-400 text-xs font-black hover:text-amber-300">
-            Apply at StartupIndia.gov.in <ExternalLink className="h-3 w-3" />
+            Apply at StartupIndia.gov.in (DPIIT Portal) <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       )}
@@ -634,45 +686,80 @@ export function SchemesResult({ data }: { data: any }) {
       </div>
 
       <div className="space-y-3">
-        {data.matchedSchemes?.map((scheme: any, i: number) => (
-          <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:border-green-500/30 transition-colors">
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-black text-white text-sm">{scheme.name}</span>
-                  <Badge className={`text-[9px] px-2 py-0.5 ${scheme.type === 'Grant' ? 'bg-green-500/20 text-green-400' : scheme.type === 'Loan' ? 'bg-blue-500/20 text-blue-400' : 'bg-violet-500/20 text-violet-400'}`}>
-                    {scheme.type}
-                  </Badge>
-                  <Badge className={`text-[9px] px-2 py-0.5 font-black ${scheme.urgency?.includes('Now') ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                    {scheme.urgency}
-                  </Badge>
+        {data.matchedSchemes?.map((scheme: any, i: number) => {
+          const cleanName = scheme.name.toLowerCase();
+          const dbScheme = GOVERNMENT_SCHEMES.find(s => {
+            const sName = s.name.toLowerCase();
+            return sName.includes(cleanName) || cleanName.includes(sName) ||
+              (sName.includes('dpiit') && cleanName.includes('dpiit')) ||
+              (sName.includes('prayas') && cleanName.includes('prayas')) ||
+              (sName.includes('eir') && cleanName.includes('eir')) ||
+              (sName.includes('birac') && cleanName.includes('birac')) ||
+              (sName.includes('seed fund') && cleanName.includes('seed')) ||
+              (sName.includes('meity') && cleanName.includes('meity')) ||
+              (sName.includes('msme') && cleanName.includes('msme')) ||
+              (sName.includes('kerala') && cleanName.includes('kerala')) ||
+              (sName.includes('tamil nadu') && cleanName.includes('tamil')) ||
+              (sName.includes('telangana') && cleanName.includes('telangana')) ||
+              (sName.includes('nasscom') && cleanName.includes('nasscom')) ||
+              (sName.includes('icreate') && cleanName.includes('icreate')) ||
+              (sName.includes('aim') && cleanName.includes('aim')) ||
+              (sName.includes('pli') && cleanName.includes('pli'));
+          });
+
+          const nameToUse = dbScheme ? dbScheme.name : scheme.name;
+          const agencyToUse = dbScheme ? dbScheme.agency : scheme.agency;
+          const amountToUse = dbScheme ? dbScheme.amount : scheme.amount;
+          const linkToUse = dbScheme ? dbScheme.link : (scheme.link && scheme.link.startsWith('http') ? scheme.link : 'https://www.startupindia.gov.in');
+          const descriptionToUse = dbScheme ? dbScheme.description : '';
+
+          return (
+            <div key={i} className="p-4 bg-white/5 rounded-2xl border border-white/10 hover:border-green-500/30 transition-colors">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="font-black text-white text-sm">{nameToUse}</span>
+                    <Badge className={`text-[9px] px-2 py-0.5 ${scheme.type === 'Grant' ? 'bg-green-500/20 text-green-400' : scheme.type === 'Loan' ? 'bg-blue-500/20 text-blue-400' : 'bg-violet-500/20 text-violet-400'}`}>
+                      {scheme.type}
+                    </Badge>
+                    <Badge className={`text-[9px] px-2 py-0.5 font-black ${scheme.urgency?.includes('Now') ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                      {scheme.urgency}
+                    </Badge>
+                  </div>
+                  <p className="text-emerald-400 font-black text-sm">{amountToUse}</p>
+                  <p className="text-white/50 text-xs">{agencyToUse}</p>
                 </div>
-                <p className="text-emerald-400 font-black text-sm">{scheme.amount}</p>
-                <p className="text-white/50 text-xs">{scheme.agency}</p>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-xl font-black text-emerald-400">{scheme.fitScore}</div>
-                <div className="text-[9px] text-white/30 uppercase tracking-widest">FIT</div>
-              </div>
-            </div>
-            <p className="text-white/60 text-xs mb-3">{scheme.fitReason}</p>
-            <div className="mb-3">
-              <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">APPLICATION STEPS</p>
-              {scheme.applicationSteps?.map((step: string, si: number) => (
-                <div key={si} className="flex items-start gap-2 text-xs text-white/70 mb-1">
-                  <span className="text-primary font-black">{si + 1}.</span> {step}
+                <div className="text-right flex-shrink-0">
+                  <div className="text-xl font-black text-emerald-400">{scheme.fitScore}</div>
+                  <div className="text-[9px] text-white/30 uppercase tracking-widest">FIT</div>
                 </div>
-              ))}
+              </div>
+              
+              {descriptionToUse && (
+                <p className="text-white/70 text-xs mb-3 italic bg-white/5 p-2.5 rounded-xl border border-white/5">
+                  {descriptionToUse}
+                </p>
+              )}
+
+              <p className="text-white/60 text-xs mb-3">{scheme.fitReason}</p>
+              <div className="mb-3">
+                <p className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1">APPLICATION STEPS</p>
+                {scheme.applicationSteps?.map((step: string, si: number) => (
+                  <div key={si} className="flex items-start gap-2 text-xs text-white/70 mb-1">
+                    <span className="text-primary font-black">{si + 1}.</span> {step}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-white/30">Deadline: <span className="text-white/60">{scheme.deadline}</span></span>
+                <a href={linkToUse} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-primary text-xs font-black hover:text-primary/80">
+                  Apply Now <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[9px] text-white/30">Deadline: <span className="text-white/60">{scheme.deadline}</span></span>
-              <a href={getOfficialSchemeLink(scheme.name, scheme.link)} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 text-primary text-xs font-black hover:text-primary/80">
-                Apply Now <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="p-4 bg-green-500/10 rounded-2xl border border-green-500/20">
