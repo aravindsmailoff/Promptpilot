@@ -389,19 +389,59 @@ Stage: "${input.stage || 'Pre-Seed'}"`,
 export async function runCoFounderModule(input: CoFounderInput): Promise<string> {
   const { system, user } = MODULE_PROMPTS[input.module](input);
 
-  const ollamaUrl = input.ollamaBaseUrl || 'http://127.0.0.1:11434';
-  const ollamaModel = input.ollamaModel || 'gemma2:2b';
+  let response = '';
+  let success = false;
 
-  const response = await executeOllamaChat(
-    ollamaUrl,
-    ollamaModel,
-    [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    0.3,
-    { type: 'json_object' }
-  );
+  if (input.useOllama) {
+    try {
+      const ollamaUrl = input.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      const ollamaModel = input.ollamaModel || 'gemma2:2b';
+
+      console.log(`[CoFounder AI] Attempting local Ollama execution: ${ollamaUrl} (${ollamaModel})`);
+      response = await executeOllamaChat(
+        ollamaUrl,
+        ollamaModel,
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        0.3,
+        { type: 'json_object' }
+      );
+      success = true;
+    } catch (err: any) {
+      console.warn('[CoFounder AI] Local Ollama execution failed, falling back to Hugging Face cloud Gemma 2b:', err.message || err);
+    }
+  }
+
+  if (!success) {
+    console.log('[CoFounder AI] Running Cloud Gemma 2b via Hugging Face...');
+    const { hfClient } = await import('@/ai/huggingface');
+    
+    let res;
+    try {
+      res = await hfClient.chat.completions.create({
+        model: 'google/gemma-2-2b-it',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3
+      });
+    } catch (jsonModeError) {
+      console.warn("[CoFounder AI] HF Router JSON mode failed, retrying without response_format:", jsonModeError);
+      res = await hfClient.chat.completions.create({
+        model: 'google/gemma-2-2b-it',
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user }
+        ],
+        temperature: 0.3
+      });
+    }
+    response = res.choices[0]?.message?.content || '';
+  }
 
   // Strip think tags if present
   const cleaned = response

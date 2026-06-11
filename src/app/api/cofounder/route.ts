@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       targetMarket,
       teamSize,
       location,
+      useOllama,
       ollamaBaseUrl,
       ollamaModel,
     });

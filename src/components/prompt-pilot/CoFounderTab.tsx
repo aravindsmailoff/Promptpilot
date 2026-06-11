@@ -810,14 +810,6 @@ export function CoFounderTab() {
       toast({ variant: "destructive", title: "Set Your Startup First", description: "Enter your idea in the startup profile above." });
       return;
     }
-    if (!settings.useOllama) {
-      toast({
-        variant: "destructive",
-        title: "Ollama Required",
-        description: "Please enable Local LLM (Ollama) in Settings to use Co-Founder AI.",
-      });
-      return;
-    }
 
     setActiveModule(moduleId);
     setLoading(true);
@@ -961,9 +953,9 @@ export function CoFounderTab() {
                 {profileSaved ? "Update Profile" : "Activate Co-Founder"}
               </Button>
               {!settings.useOllama && (
-                <div className="flex items-center gap-2 text-amber-400 text-xs">
-                  <AlertTriangle className="h-4 w-4" />
-                  Enable Local LLM in Settings to use Co-Founder AI
+                <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold">
+                  <Globe className="h-4 w-4 animate-pulse" />
+                  Cloud Co-Founder Active (Hugging Face)
                 </div>
               )}
             </div>

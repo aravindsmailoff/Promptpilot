@@ -101,8 +101,8 @@ User Feedback for refinement: """${input.feedback}"""`;
         return parsedOutput;
 
       } catch (error: any) {
-        console.error(`[PromptPilot] Ollama refinement error:`, error);
-        throw error;
+        console.warn(`[PromptPilot] Ollama/Python local refinement failed, falling back to Hugging Face Cloud API:`, error);
+        // Do not throw, allow execution to fall through to Hugging Face Cloud fallback
       }
     }
 

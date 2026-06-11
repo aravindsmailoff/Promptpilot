@@ -26,12 +26,7 @@ export const hfClient = new OpenAI({
  * The system tries each in order and falls back on failure.
  */
 export const ROUTING_MODELS = [
-  // #1 Best: Qwen3-32B — highest throughput + structured output via groq on HF router
-  "Qwen/Qwen3-32B",
-  // #2 Fallback: lighter Qwen3-8B — fast, still great at instruction following
-  "Qwen/Qwen3-8B",
-  // #3 Legacy: original Gemma model — kept as last resort
-  "google/gemma-4-31B-it:together",
+  "google/gemma-2-2b-it",
 ] as const;
 
 export const PRIMARY_ROUTING_MODEL = ROUTING_MODELS[0];
