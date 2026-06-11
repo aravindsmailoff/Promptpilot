@@ -673,9 +673,9 @@ export function SchemesResult({ data }: { data: any }) {
           <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-2">⚡ DO THIS FIRST: DPIIT RECOGNITION</p>
           <p className="text-white/80 text-sm mb-2">{data.dpiitRegistrationGuide.benefit}</p>
           <p className="text-white/60 text-xs">{data.dpiitRegistrationGuide.howToApply}</p>
-          <a href="https://www.startupindia.gov.in/content/sih/en/startupgov/startup-recognition-page.html" target="_blank" rel="noopener noreferrer"
+          <a href="https://www.nsws.gov.in/" target="_blank" rel="noopener noreferrer"
             className="mt-3 inline-flex items-center gap-1 text-amber-400 text-xs font-black hover:text-amber-300">
-            Apply at StartupIndia.gov.in (DPIIT Portal) <ExternalLink className="h-3 w-3" />
+            Apply on National Single Window System (NSWS) <ExternalLink className="h-3 w-3" />
           </a>
         </div>
       )}
