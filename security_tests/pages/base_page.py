@@ -11,10 +11,21 @@ class BasePage:
 
     def navigate_to(self, url: str):
         """Navigate to a URL and bypass ngrok warning if present."""
+        try:
+            # Set ngrok skip browser warning header via Chrome DevTools Protocol (CDP)
+            self.driver.execute_cdp_cmd('Network.enable', {})
+            self.driver.execute_cdp_cmd('Network.setExtraHTTPHeaders', {
+                'headers': {
+                    'ngrok-skip-browser-warning': 'true'
+                }
+            })
+        except Exception as e:
+            print(f"[BasePage] Warning: Failed to set CDP headers: {e}")
+
         self.driver.get(url)
         try:
             import time
-            # Look for ngrok "Visit Site" or "skip" button
+            # Fallback in case CDP headers failed/weren't applied
             visit_button_locator = (By.XPATH, "//button[contains(text(), 'Visit Site') or contains(., 'Visit Site') or contains(text(), 'skip') or contains(., 'skip')]")
             el = WebDriverWait(self.driver, 3).until(
                 EC.element_to_be_clickable(visit_button_locator)
