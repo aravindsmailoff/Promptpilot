@@ -179,14 +179,20 @@ async function main() {
   process.on('SIGINT', cleanExit);
   process.on('SIGTERM', cleanExit);
 
-  // Start Ngrok Tunnel first, and update configuration files
-  try {
-    const res = await startTunnel();
-    tunnelObj = res.tunnelObj;
-    updateConfigFiles(res.url);
-  } catch (err) {
-    console.error('\x1b[31m[Launcher - ERR] Failed to start tunnel or update configs:\x1b[0m', err);
-    console.log('\x1b[33mContinuing dev server startup without tunnel...\x1b[0m');
+  // Start Ngrok Tunnel if ENABLE_TUNNEL is true, otherwise run purely on localhost
+  if (process.env.ENABLE_TUNNEL === 'true') {
+    try {
+      const res = await startTunnel();
+      tunnelObj = res.tunnelObj;
+      updateConfigFiles(res.url);
+    } catch (err) {
+      console.error('\x1b[31m[Launcher - ERR] Failed to start tunnel or update configs:\x1b[0m', err);
+      console.log('\x1b[33mContinuing dev server startup without tunnel...\x1b[0m');
+      updateConfigFiles('http://localhost:9002');
+    }
+  } else {
+    console.log('\x1b[32m[Launcher] Running in LOCALHOST-only mode (tunnel disabled). To enable ngrok, set ENABLE_TUNNEL=true in .env.\x1b[0m');
+    updateConfigFiles('http://localhost:9002');
   }
 
   // 1. Check & Start Server on Port 8001
