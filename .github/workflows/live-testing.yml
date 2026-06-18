@@ -13,7 +13,7 @@ jobs:
     env:
       HEADLESS: "true"
       NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-      NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
+      NEXTAUTH_URL: http://localhost:9002
       DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
 
     steps:
@@ -46,7 +46,23 @@ jobs:
           pip install -r security_tests/requirements.txt
           pip install -r appium_tests/requirements.txt
 
-      - name: Verify ngrok Tunnel and App Health
+      - name: Install Node Dependencies
+        run: |
+          cd Promptpilot
+          npm install
+
+      - name: Start FastAPI Server
+        run: |
+          python Promptpilot/context_server.py &
+          sleep 5
+
+      - name: Start Next.js App
+        run: |
+          cd Promptpilot
+          npx next dev -p 9002 &
+          sleep 10
+
+      - name: Verify Local App Health
         run: |
           max_attempts=30
           attempt=1
@@ -55,14 +71,13 @@ jobs:
             response=$(curl -s -o /dev/null -w "%{http_code}" "$NEXTAUTH_URL")
             if [ "$response" = "200" ] || [ "$response" = "302" ]; then
               echo "✓ Application is responding with HTTP $response"
-              sleep 5  # Give app time to fully initialize
               exit 0
             fi
             echo "Got HTTP $response, retrying in 2 seconds..."
             sleep 2
             attempt=$((attempt + 1))
           done
-          echo "ERROR: Application health check failed after $max_attempts attempts"
+          echo "ERROR: Local application failed to respond on port 9002"
           exit 1
 
       - name: Run Selenium E2E Test Suite
@@ -94,6 +109,9 @@ jobs:
           emulator-options: -no-snapshot-load -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
+            adb wait-for-device
+            adb reverse tcp:9002 tcp:9002
+            adb reverse tcp:8001 tcp:8001
             npx appium --log appium.log &
             sleep 8
             cd appium_tests
