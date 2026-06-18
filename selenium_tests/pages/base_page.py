@@ -7,7 +7,7 @@ class BasePage:
     
     def __init__(self, driver):
         self.driver = driver
-        self.wait_time = 10
+        self.wait_time = 30
 
     def navigate_to(self, url: str):
         """Navigate to a URL and bypass ngrok warning if present."""

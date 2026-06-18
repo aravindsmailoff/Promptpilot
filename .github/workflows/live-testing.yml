@@ -23,6 +23,7 @@ jobs:
           cache-dependency-path: |
             selenium_tests/requirements.txt
             security_tests/requirements.txt
+            appium_tests/requirements.txt
 
       - name: Set up Chrome & ChromeDriver
         uses: browser-actions/setup-chrome@v1
@@ -38,18 +39,26 @@ jobs:
           pip install --upgrade pip
           pip install -r selenium_tests/requirements.txt
           pip install -r security_tests/requirements.txt
+          pip install -r appium_tests/requirements.txt
 
-      - name: Verify ngrok Tunnel is Active
+      - name: Verify ngrok Tunnel and App Health
         run: |
-          echo "Checking if ngrok tunnel is online..."
-          # ngrok endpoints return 200/302 normally, but we can do a curl to check reachability
-          curl -I -s https://drudgingly-unshivered-sarah.ngrok-free.dev | grep -q "HTTP/"
-          if [ $? -eq 0 ]; then
-            echo "ngrok tunnel is online!"
-          else
-            echo "ERROR: ngrok tunnel is offline. Please make sure 'npm run dev' is running on your local machine."
-            exit 1
-          fi
+          max_attempts=30
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Health check attempt $attempt/$max_attempts..."
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://drudgingly-unshivered-sarah.ngrok-free.dev)
+            if [ "$response" = "200" ] || [ "$response" = "302" ]; then
+              echo "✓ Application is responding with HTTP $response"
+              sleep 5  # Give app time to fully initialize
+              exit 0
+            fi
+            echo "Got HTTP $response, retrying in 2 seconds..."
+            sleep 2
+            attempt=$((attempt + 1))
+          done
+          echo "ERROR: Application health check failed after $max_attempts attempts"
+          exit 1
 
       - name: Run Selenium E2E Test Suite
         run: |
@@ -60,6 +69,7 @@ jobs:
           NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
           NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
           DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
+          PYTEST_TIMEOUT: "60"
 
       - name: Run Security & Vulnerability Test Suite
         run: |
@@ -70,6 +80,34 @@ jobs:
           NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
           NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
           DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
+          PYTEST_TIMEOUT: "60"
+
+      - name: Install Appium and UIAutomator2 Driver
+        run: |
+          npm install appium
+          npx appium driver install uiautomator2
+
+      - name: Run Appium Mobile E2E Test Suite
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          force-avd-creation: true
+          emulator-options: -no-snapshot-load -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            npx appium --log appium.log &
+            sleep 8
+            cd appium_tests
+            pytest -v --tb=short
+        env:
+          HEADLESS: "true"
+          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
+          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
+          ADB_PATH: /usr/local/lib/android/sdk/platform-tools/adb
+          PYTEST_TIMEOUT: "60"
 
       - name: Upload Test Reports
         if: always()
@@ -79,5 +117,8 @@ jobs:
           path: |
             selenium_tests/reports/
             security_tests/reports/
+            appium_tests/reports/
             selenium_tests/TEST_EXECUTION_SUMMARY.md
             security_tests/VULNERABILITY_TEST_SUMMARY.md
+            appium_tests/TEST_EXECUTION_SUMMARY.md
+            appium_tests/test_automation_report.xlsx

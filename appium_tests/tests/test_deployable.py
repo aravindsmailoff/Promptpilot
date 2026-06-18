@@ -140,7 +140,13 @@ def test_ds_012_tkinter(reporter):
 
 def test_ds_013_adb_devices(reporter):
     def _fn():
-        adb_path = r"C:\Users\Welcome\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+        adb_path = os.environ.get("ADB_PATH")
+        if not adb_path:
+            win_default = r"C:\Users\Welcome\AppData\Local\Android\Sdk\platform-tools\adb.exe"
+            if os.name == 'nt' and Path(win_default).exists():
+                adb_path = win_default
+            else:
+                adb_path = "adb"
         r = subprocess.run([adb_path, "devices"], capture_output=True, text=True, timeout=10)
         assert r.returncode == 0
         lines = r.stdout.strip().splitlines()

@@ -7,7 +7,7 @@ class BasePage:
     
     def __init__(self, driver):
         self.driver = driver
-        self.wait_time = 10
+        self.wait_time = 30
 
     def find_element(self, locator: tuple, timeout=None):
         """Wait for and find element on page, prioritizing visible ones."""
