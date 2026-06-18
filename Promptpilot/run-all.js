@@ -215,7 +215,7 @@ async function main() {
     if (nextInUse) {
       console.log('\x1b[36m[Next.js] Port 9002 is already in use. Reusing the active dashboard.\x1b[0m');
     } else {
-      nextjs = runProcess('npx', ['next', 'dev', '--turbopack', '-H', '0.0.0.0', '-p', '9002'], 'Next.js', '36');
+      nextjs = runProcess('npx', ['next', 'dev', '-H', '0.0.0.0', '-p', '9002'], 'Next.js', '36');
     }
   }, 3000);
 }
