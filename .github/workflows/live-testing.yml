@@ -10,6 +10,11 @@ jobs:
   test:
     name: E2E Live Testing
     runs-on: ubuntu-latest
+    env:
+      HEADLESS: "true"
+      NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+      NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
+      DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
 
     steps:
       - name: Checkout Code
@@ -47,7 +52,7 @@ jobs:
           attempt=1
           while [ $attempt -le $max_attempts ]; do
             echo "Health check attempt $attempt/$max_attempts..."
-            response=$(curl -s -o /dev/null -w "%{http_code}" https://drudgingly-unshivered-sarah.ngrok-free.dev)
+            response=$(curl -s -o /dev/null -w "%{http_code}" "$NEXTAUTH_URL")
             if [ "$response" = "200" ] || [ "$response" = "302" ]; then
               echo "✓ Application is responding with HTTP $response"
               sleep 5  # Give app time to fully initialize
@@ -65,10 +70,6 @@ jobs:
           cd selenium_tests
           pytest -v --tb=short
         env:
-          HEADLESS: "true"
-          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
-          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
           PYTEST_TIMEOUT: "60"
 
       - name: Run Security & Vulnerability Test Suite
@@ -76,10 +77,6 @@ jobs:
           cd security_tests
           pytest -v --tb=short
         env:
-          HEADLESS: "true"
-          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
-          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
           PYTEST_TIMEOUT: "60"
 
       - name: Install Appium and UIAutomator2 Driver
@@ -102,10 +99,6 @@ jobs:
             cd appium_tests
             pytest -v --tb=short
         env:
-          HEADLESS: "true"
-          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
-          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
           ADB_PATH: /usr/local/lib/android/sdk/platform-tools/adb
           PYTEST_TIMEOUT: "60"
 

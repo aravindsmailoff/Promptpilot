@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const ngrok = require('@ngrok/ngrok');
 
+// Load environment variables from .env
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 const isWindows = process.platform === 'win32';
 
 // Starts Ngrok Tunnel on port 9002 using the static domain and authtoken
@@ -12,10 +15,13 @@ function startTunnel() {
     try {
       console.log('\x1b[34m[Tunnel] Starting Ngrok Tunnel on port 9002...\x1b[0m');
       
+      const authtoken = process.env.NGROK_AUTHTOKEN || '33E8pSxAQ7L2zzp3HkXHhagbZZ2_5tdkdjAhPF3aVG5hhQk23';
+      const domain = process.env.NGROK_DOMAIN || 'drudgingly-unshivered-sarah.ngrok-free.dev';
+      
       ngrok.forward({
         addr: 9002,
-        authtoken: '33E8pSxAQ7L2zzp3HkXHhagbZZ2_5tdkdjAhPF3aVG5hhQk23',
-        domain: 'drudgingly-unshivered-sarah.ngrok-free.dev'
+        authtoken: authtoken,
+        domain: domain
       }).then((listener) => {
         const url = listener.url();
         console.log('\n\x1b[36m╔══════════════════════════════════════════════════╗\x1b[0m');
