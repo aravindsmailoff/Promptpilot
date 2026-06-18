@@ -1,0 +1,133 @@
+name: PromptPilot CI — Automated Testing Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Build & E2E Testing
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: promptpilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: Promptpilot/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            selenium_tests/requirements.txt
+            security_tests/requirements.txt
+
+      - name: Set up Chrome & ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Verify Chrome Version
+        run: |
+          chrome --version
+
+      - name: Install Node.js Dependencies
+        run: |
+          cd Promptpilot
+          npm ci
+
+      - name: Run Prisma Setup
+        run: |
+          cd Promptpilot
+          npx prisma generate
+          npx prisma db push
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r selenium_tests/requirements.txt
+          pip install -r security_tests/requirements.txt
+
+      - name: Start FastAPI Context Server
+        run: |
+          python Promptpilot/context_server.py &
+          echo "FastAPI backend started in the background."
+        env:
+          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+
+      - name: Start Next.js App
+        run: |
+          cd Promptpilot
+          npm run dev:next &
+          echo "Next.js dashboard started on port 9002."
+        env:
+          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+          NEXTAUTH_URL: http://localhost:9002
+
+      - name: Wait for Services to Start
+        run: |
+          echo "Waiting for Next.js and FastAPI to listen..."
+          for i in {1..20}; do
+            curl -s http://localhost:9002 && curl -s http://127.0.0.1:8001/health && break
+            echo "Waiting..."
+            sleep 5
+          done
+
+      - name: Run Selenium E2E Test Suite
+        run: |
+          cd selenium_tests
+          pytest -v --tb=short
+        env:
+          HEADLESS: "true"
+          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+          NEXTAUTH_URL: http://localhost:9002
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+
+      - name: Run Security & Vulnerability Test Suite
+        run: |
+          cd security_tests
+          pytest -v --tb=short
+        env:
+          HEADLESS: "true"
+          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
+          NEXTAUTH_URL: http://localhost:9002
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            selenium_tests/reports/
+            security_tests/reports/
+            selenium_tests/TEST_EXECUTION_SUMMARY.md
+            security_tests/VULNERABILITY_TEST_SUMMARY.md

@@ -1,0 +1,12 @@
+rootProject.name = 'Promptpilot-main'
+include ':app'
+project(':app').projectDir = new File('Promptpilot/android/app')
+
+include ':capacitor-android'
+project(':capacitor-android').projectDir = new File('Promptpilot/node_modules/@capacitor/android/capacitor')
+
+include ':capgo-capacitor-social-login'
+project(':capgo-capacitor-social-login').projectDir = new File('Promptpilot/node_modules/@capgo/capacitor-social-login/android')
+
+include ':capacitor-cordova-android-plugins'
+project(':capacitor-cordova-android-plugins').projectDir = new File('Promptpilot/android/capacitor-cordova-android-plugins')
