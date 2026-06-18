@@ -1,4 +1,4 @@
-name: PromptPilot CI — Automated Testing Pipeline
+name: PromptPilot CI — Automated Testing Pipeline (Live Remote)
 
 on:
   push:
@@ -8,34 +8,12 @@ on:
 
 jobs:
   test:
-    name: Build & E2E Testing
+    name: E2E Live Testing
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: promptpilot
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: Promptpilot/package-lock.json
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,51 +33,23 @@ jobs:
         run: |
           chrome --version
 
-      - name: Install Node.js Dependencies
-        run: |
-          cd Promptpilot
-          npm ci
-
-      - name: Run Prisma Setup
-        run: |
-          cd Promptpilot
-          npx prisma generate
-          npx prisma db push
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
-
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
           pip install -r selenium_tests/requirements.txt
           pip install -r security_tests/requirements.txt
 
-      - name: Start FastAPI Context Server
+      - name: Verify ngrok Tunnel is Active
         run: |
-          python Promptpilot/context_server.py &
-          echo "FastAPI backend started in the background."
-        env:
-          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
-
-      - name: Start Next.js App
-        run: |
-          cd Promptpilot
-          npm run dev:next &
-          echo "Next.js dashboard started on port 9002."
-        env:
-          NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
-          NEXTAUTH_URL: http://localhost:9002
-
-      - name: Wait for Services to Start
-        run: |
-          echo "Waiting for Next.js and FastAPI to listen..."
-          for i in {1..20}; do
-            curl -s http://localhost:9002 && curl -s http://127.0.0.1:8001/health && break
-            echo "Waiting..."
-            sleep 5
-          done
+          echo "Checking if ngrok tunnel is online..."
+          # ngrok endpoints return 200/302 normally, but we can do a curl to check reachability
+          curl -I -s https://drudgingly-unshivered-sarah.ngrok-free.dev | grep -q "HTTP/"
+          if [ $? -eq 0 ]; then
+            echo "ngrok tunnel is online!"
+          else
+            echo "ERROR: ngrok tunnel is offline. Please make sure 'npm run dev' is running on your local machine."
+            exit 1
+          fi
 
       - name: Run Selenium E2E Test Suite
         run: |
@@ -108,8 +58,8 @@ jobs:
         env:
           HEADLESS: "true"
           NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          NEXTAUTH_URL: http://localhost:9002
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
+          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
 
       - name: Run Security & Vulnerability Test Suite
         run: |
@@ -118,8 +68,8 @@ jobs:
         env:
           HEADLESS: "true"
           NEXTAUTH_SECRET: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg
-          NEXTAUTH_URL: http://localhost:9002
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/promptpilot
+          NEXTAUTH_URL: https://drudgingly-unshivered-sarah.ngrok-free.dev
+          DATABASE_URL: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
 
       - name: Upload Test Reports
         if: always()
