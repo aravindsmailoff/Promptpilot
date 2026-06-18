@@ -11,9 +11,9 @@ async function main() {
   });
 
   try {
-    console.log("Sending chat completion request to Qwen/Qwen3-8B...");
+    console.log("Sending chat completion request to Qwen/Qwen2.5-7B-Instruct...");
     const response = await client.chat.completions.create({
-      model: "Qwen/Qwen3-8B",
+      model: "Qwen/Qwen2.5-7B-Instruct",
       messages: [
         { role: "user", content: "Hello, are you online?" }
       ],

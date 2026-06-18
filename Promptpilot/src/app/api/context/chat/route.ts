@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeOllamaChat } from '@/ai/ollama';
 import { executePythonChat } from '@/ai/python-server';
-import { hfClient } from '@/ai/huggingface';
+import { hfClient, PRIMARY_ROUTING_MODEL } from '@/ai/huggingface';
 import fs from 'fs';
 import path from 'path';
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     if (!success) {
       console.log('[Chat API] Running Cloud Gemma 2b via Hugging Face...');
       const response = await hfClient.chat.completions.create({
-        model: 'google/gemma-2-2b-it',
+        model: PRIMARY_ROUTING_MODEL,
         messages: [
           { role: 'user', content: prompt }
         ],

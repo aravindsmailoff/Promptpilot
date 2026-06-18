@@ -512,12 +512,12 @@ export async function runCoFounderModule(input: CoFounderInput): Promise<string>
 
   if (!success) {
     console.log('[CoFounder AI] Running Cloud Gemma 2b via Hugging Face...');
-    const { hfClient } = await import('@/ai/huggingface');
+    const { hfClient, PRIMARY_ROUTING_MODEL } = await import('@/ai/huggingface');
 
     let res;
     try {
       res = await hfClient.chat.completions.create({
-        model: 'google/gemma-2-2b-it',
+        model: PRIMARY_ROUTING_MODEL,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user }
@@ -528,7 +528,7 @@ export async function runCoFounderModule(input: CoFounderInput): Promise<string>
     } catch (jsonModeError) {
       console.warn("[CoFounder AI] HF Router JSON mode failed, retrying without response_format:", jsonModeError);
       res = await hfClient.chat.completions.create({
-        model: 'google/gemma-2-2b-it',
+        model: PRIMARY_ROUTING_MODEL,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: user }

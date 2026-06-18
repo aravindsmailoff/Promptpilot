@@ -26,7 +26,8 @@ export const hfClient = new OpenAI({
  * The system tries each in order and falls back on failure.
  */
 export const ROUTING_MODELS = [
-  "google/gemma-2-2b-it",
+  "Qwen/Qwen2.5-7B-Instruct",
+  "meta-llama/Llama-3.1-8B-Instruct",
 ] as const;
 
 export const PRIMARY_ROUTING_MODEL = ROUTING_MODELS[0];
