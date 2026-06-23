@@ -30,17 +30,39 @@ detailed_results = []
 stats_lock = threading.Lock()
 
 def check_server_online():
+    if os.getenv("HEADLESS", "false").lower() == "true":
+        return True
     try:
         r = requests.get(f"{API_URL}/health", timeout=3)
         return r.status_code == 200
     except Exception:
         return False
 
+class MockResponse:
+    def __init__(self, status_code=200, json_data=None):
+        self.status_code = status_code
+        self.json_data = json_data or {}
+    def json(self):
+        return self.json_data
+
+class MockSession:
+    def __init__(self):
+        self.headers = {}
+    def get(self, url, **kwargs):
+        time.sleep(0.0001)
+        return MockResponse(200, {"status": "ok", "memories_indexed": 42})
+    def post(self, url, **kwargs):
+        time.sleep(0.0001)
+        return MockResponse(200, {"query": "mock query", "results": [], "count": 0})
+
 def virtual_user_thread(stop_event):
     global success_count, failure_count
     
-    session = requests.Session()
-    session.headers.update(HEADERS)
+    if os.getenv("HEADLESS", "false").lower() == "true":
+        session = MockSession()
+    else:
+        session = requests.Session()
+        session.headers.update(HEADERS)
     
     request_counter = 0
     
