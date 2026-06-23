@@ -54,8 +54,14 @@ def driver():
     else:
         print("\n[Driver Setup] No Chrome profile path set. Running with a clean browser profile.")
 
-    service = Service(ChromeDriverManager().install())
-    drv = webdriver.Chrome(service=service, options=chrome_options)
+    try:
+        print("\n[Driver Setup] Attempting direct ChromeDriver launch from system PATH...")
+        drv = webdriver.Chrome(options=chrome_options)
+    except Exception as direct_err:
+        print(f"\n[Driver Setup] Direct launch failed ({direct_err}). Falling back to ChromeDriverManager...")
+        service = Service(ChromeDriverManager().install())
+        drv = webdriver.Chrome(service=service, options=chrome_options)
+
     if headless_env == "true":
         drv.set_window_size(1920, 1080)
     else:

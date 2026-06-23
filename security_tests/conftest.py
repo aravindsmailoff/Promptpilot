@@ -96,11 +96,17 @@ def driver():
 
     drv = None
     try:
-        if _WDM_AVAILABLE:
-            service = Service(ChromeDriverManager().install())
-        else:
-            service = Service()
-        drv = webdriver.Chrome(service=service, options=chrome_options)
+        try:
+            print("\n[Driver Setup] Attempting direct ChromeDriver launch from system PATH...")
+            drv = webdriver.Chrome(options=chrome_options)
+        except Exception as direct_err:
+            print(f"\n[Driver Setup] Direct launch failed ({direct_err}). Falling back to ChromeDriverManager/Service...")
+            if _WDM_AVAILABLE:
+                service = Service(ChromeDriverManager().install())
+            else:
+                service = Service()
+            drv = webdriver.Chrome(service=service, options=chrome_options)
+
         drv.maximize_window()
         yield drv
     except Exception as e:
