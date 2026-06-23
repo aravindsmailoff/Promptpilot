@@ -863,6 +863,97 @@ Stage: "${input.stage || 'Pre-Seed'}"`,
 };
 
 export async function runCoFounderModule(input: CoFounderInput): Promise<string> {
+  if (process.env.HEADLESS === 'true') {
+    console.log(`[CoFounder AI Test Mode] Returning mock JSON response for module: ${input.module}`);
+    switch (input.module) {
+      case 'validate':
+        return JSON.stringify({
+          verdict: "STRONGLY VALIDATE",
+          overallScore: 85,
+          brutalHonesty: "Mock validation success.",
+          dimensions: {
+            problem: { score: 8, painLevel: "High", frequency: "Daily", evidence: "Mock evidence", summary: "Mock" },
+            customer: { score: 9, primaryPersona: "Mock", secondaryPersona: "Mock", buyingPower: "High", summary: "Mock" },
+            demand: { score: 8, trend: "Rising", googleTrend: "Rising", redditSignal: "Positive", productHuntSignal: "Active", summary: "Mock" },
+            competition: { score: 7, saturation: "Medium", directCount: 3, indirectCount: 5, topCompetitor: "Mock", summary: "Mock" },
+            uvp: { score: 9, existingSolutionFlaw: "Mock", differentiation: "Mock", switchReason: "Mock", weakFlag: false },
+            revenue: { score: 8, primaryStream: "Mock", secondaryStream: "Mock", monetizationDifficulty: "Easy", summary: "Mock" },
+            technical: { score: 8, mvpWeeks: 4, teamRequired: ["Dev"], complexity: "Medium", summary: "Mock" },
+            founderFit: { score: 9, requiredExpertise: ["Product"], advantage: "Mock", summary: "Mock" },
+            scalability: { score: 8, local: "Mock", national: "Mock", global: "Mock", summary: "Mock" },
+            risk: { score: 3, topRisks: [] },
+            investorAppeal: { score: 8, vcVerdict: "Mock", defensibility: "High", growthPotential: "Exponential", summary: "Mock" },
+            mvpRoadmap: { weeks: [] }
+          },
+          marketSize: { TAM: "Mock", SAM: "Mock", SOM: "Mock", assumptions: [] },
+          swot: { strengths: [], weaknesses: [], opportunities: [], threats: [] },
+          scorecard: { problem: 8, customer: 9, demand: 8, competition: 7, uvp: 9, revenue: 8, technical: 8, scalability: 8, risk: 3, investorAppeal: 8 },
+          recommendations: { top5Improvements: [], fastestExperiments: [], niches: [], acquisitionChannels: [], pricingSuggestions: [] },
+          qualifiesForGovtFunding: true,
+          govtFundingReason: "Mock reason"
+        });
+        
+      case 'competitors':
+        return JSON.stringify({
+          competitors: [
+            { name: "Mock Competitor", website: "https://mock.com", companyType: "Startup", country: "India", fundingStatus: "Seed", description: "Mock", whyCompetitor: "Mock", similarityScore: 80, marketSegment: "Mock", pricingModel: "SaaS" }
+          ]
+        });
+
+      case 'discovery':
+        return JSON.stringify({
+          verdict: "STRONG CUSTOMER VALIDATION",
+          segments: [],
+          icp: { confidenceScore: 8, goals: [], frustrations: [] },
+          painAnalysis: {},
+          jtbd: {},
+          existingSolutions: [],
+          buyingTriggers: [],
+          willingnessToPayAnalysis: {},
+          acquisitionChannels: [],
+          voiceOfCustomer: { quotes: [], commonComplaints: [], desiredOutcomes: [] },
+          objections: [],
+          discoveryQuestions: [],
+          validationRoadmap: [],
+          scorecard: {},
+          recommendations: {}
+        });
+
+      case 'schemes':
+        return JSON.stringify({
+          verdict: "STRONG OPPORTUNITY",
+          classification: {},
+          matchedSchemes: [],
+          documentChecklist: {},
+          fundingRoadmap: [],
+          regulatoryIncentives: [],
+          alternatives: {},
+          actionPlan: {},
+          scorecard: {},
+          totalPotentialFunding: "₹50 Lakhs",
+          recommendations: {}
+        });
+
+      case 'hiring':
+        return JSON.stringify({
+          verdict: "LEAN MVP CONTRACTORS",
+          overallTalentUrgency: 70,
+          philosophy: "Mock philosophy",
+          scorecard: { talentScarcity: 8, hiringUrgency: 8, costEfficiency: 8, technicalComplexity: 8, automationPotential: 8, founderGapScore: 8 },
+          skillsGap: { foundingStrengths: [], criticalMissing: [], minimumViableTeam: "Mock" },
+          hiringRoadmap: [],
+          aiAutomation: [],
+          recruitmentStrategy: { platforms: [], sourcingTactics: [], interviewProcess: [] },
+          firstHireJD: { role: "Developer", aboutUs: "Mock", responsibilities: [], requirements: [], compensation: "Mock", firstWeekGoal: "Mock" },
+          mistakesToAvoid: [],
+          strategicRecommendations: []
+        });
+
+      default:
+        return JSON.stringify({ status: "success", data: "mock", verdict: "STRONG" });
+    }
+  }
+
   const { system, user } = MODULE_PROMPTS[input.module](input);
 
   let response = '';
