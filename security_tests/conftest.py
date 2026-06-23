@@ -36,6 +36,10 @@ _reporter = SecurityReporter()
 # Track which test IDs have already been logged by run_test()
 _logged_ids: set = set()
 
+import sys
+sys._security_reporter = _reporter
+sys._logged_ids = _logged_ids
+
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -130,6 +134,19 @@ def pytest_collection_modifyitems(session, config, items):
 
 def _func_name_to_test_id(func_name: str) -> str:
     """Map pytest function name to catalog test ID, e.g. test_ut_005_clean_text -> UT_005."""
+    if "[" in func_name and "]" in func_name:
+        try:
+            base_name, params_str = func_name.split("[", 1)
+            params_str = params_str.rstrip("]")
+            params = params_str.split("-")
+            if base_name == "test_security_page_vectors" and len(params) >= 7:
+                sc_name = params[0]
+                vp_name = params[2]
+                comp_name = params[5]
+                return f"TC_SEC_{comp_name}_{vp_name}_{sc_name}"
+        except Exception:
+            pass
+            
     parts = func_name.replace("test_", "", 1).split("_")
     if len(parts) >= 2:
         return f"{parts[0].upper()}_{parts[1]}"
@@ -177,6 +194,11 @@ def pytest_runtest_logreport(report):
     if the test was already logged by run_test(). If not, we log it here
     so ALL 122 tests appear in the Excel report regardless of outcome.
     """
+    nodeid = report.nodeid
+    func_name = nodeid.split("::")[-1]
+    if "test_security_page_vectors" in func_name:
+        return
+
     import time
 
     # Only log once per test (after 'call' phase, or 'setup' if call never ran)

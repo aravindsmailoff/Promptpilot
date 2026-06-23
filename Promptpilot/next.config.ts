@@ -2,6 +2,7 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: any = {
+  output: process.env.NODE_ENV === 'development' ? undefined : 'export',
   devIndicators: false,
   experimental: {
     serverActions: {

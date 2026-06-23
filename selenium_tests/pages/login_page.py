@@ -6,8 +6,8 @@ class LoginPage(BasePage):
     """LoginPage Object representing authentication triggers on the app."""
     
     # Locators
-    SIGN_IN_GOOGLE_BTN = (By.XPATH, "//button[contains(., 'Sign In with Google')]")
-    SIGN_OUT_BTN = (By.XPATH, "//button[contains(., 'Sign Out')]")
+    SIGN_IN_GOOGLE_BTN = (By.ID, "sign-in-btn")
+    SIGN_OUT_BTN = (By.ID, "sign-out-btn")
     USER_CARD_TITLE = (By.XPATH, "//h3[contains(@class, 'text-2xl') and contains(@class, 'font-black')]")
     USER_EMAIL_TEXT = (By.XPATH, "//p[contains(@class, 'text-xs') and contains(@class, 'text-muted-foreground') and contains(text(), '@')]")
     STATUS_BADGE = (By.XPATH, "//span[contains(@class, 'Badge')]")

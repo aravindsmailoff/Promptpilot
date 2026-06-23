@@ -12,7 +12,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { SocialLogin } from '@capgo/capacitor-social-login';
 import { useSettings } from '@/components/providers/SettingsProvider';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '708444926819-u9lm4e3bmt2f3r47vdrabv0onud3k39p.apps.googleusercontent.com';
@@ -26,39 +25,7 @@ export function SettingsTab() {
   const handleSignIn = async () => {
     setAuthLoading(true);
     try {
-      if (Capacitor.isNativePlatform()) {
-        await SocialLogin.initialize({
-          google: {
-            webClientId: GOOGLE_CLIENT_ID,
-          },
-        });
-
-        const result = await SocialLogin.login({
-          provider: 'google',
-          options: {},
-        });
-
-        const idToken = (result.result as any)?.idToken;
-        if (!idToken) {
-          throw new Error('No ID token returned from Google.');
-        }
-
-        const nextAuthResult = await signIn('google-native', {
-          idToken,
-          redirect: false,
-        });
-
-        if (nextAuthResult?.error) {
-          throw new Error(nextAuthResult.error);
-        }
-
-        toast({
-          title: "Authenticated Successfully",
-          description: "Your cloud session is now active."
-        });
-      } else {
-        await signIn('google');
-      }
+      await signIn('google');
     } catch (err: any) {
       console.error("Sign-in error:", err);
       toast({
@@ -74,13 +41,6 @@ export function SettingsTab() {
   const handleSignOut = async () => {
     setAuthLoading(true);
     try {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          await SocialLogin.logout({ provider: 'google' });
-        } catch (logoutErr) {
-          console.warn("Native logout warning:", logoutErr);
-        }
-      }
       await signOut({ redirect: false });
       toast({
         title: "Signed Out",
@@ -100,7 +60,7 @@ export function SettingsTab() {
   return (
     <div className="max-w-5xl mx-auto space-y-16 animate-in fade-in duration-1000 pb-24">
       <div className="space-y-4">
-        <h2 className="text-5xl font-black tracking-tighter text-white font-headline">Account Settings</h2>
+        <h1 className="text-5xl font-black tracking-tighter text-white font-headline">Account Settings</h1>
         <p className="text-xl text-muted-foreground font-medium max-w-2xl">Manage your orchestration engine, security protocols, and mission history.</p>
       </div>
 
@@ -137,7 +97,7 @@ export function SettingsTab() {
                   value={settings.toneProfile}
                   onValueChange={(value) => updateSetting('toneProfile', value)}
                 >
-                  <SelectTrigger className="w-[200px] rounded-2xl bg-white/5 border-white/10 h-12">
+                  <SelectTrigger id="default-tone-profile" className="w-[200px] rounded-2xl bg-white/5 border-white/10 h-12">
                     <SelectValue placeholder="Style" />
                   </SelectTrigger>
                   <SelectContent className="bg-secondary border-white/10">
@@ -202,6 +162,7 @@ export function SettingsTab() {
 
               {session ? (
                 <Button 
+                  id="sign-out-btn"
                   variant="destructive" 
                   onClick={handleSignOut} 
                   disabled={authLoading}
@@ -212,6 +173,7 @@ export function SettingsTab() {
                 </Button>
               ) : (
                 <Button 
+                  id="sign-in-btn"
                   variant="secondary" 
                   onClick={handleSignIn} 
                   disabled={authLoading || status === 'loading'}

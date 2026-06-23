@@ -61,159 +61,81 @@ Selection Criteria:
 - Constraint: Your selectedAI MUST exactly match the display name of one of the AIs in the Known Fleet.
 
 ### Step 3: Optimized Prompt Rules
-When generating the "optimizedPrompt" for any text-based tasks, startup ideas, or informational guides, you MUST explicitly include instructions in the prompt telling the target AI to NOT output or hallucinate any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets. It must produce a clean, clear text/table output.`;
+When generating the "optimizedPrompt" for any text-based tasks, startup ideas, or informational guides, you MUST explicitly instruct the target AI to focus on startup ideation, helping the user generate and improvise ideas with brutal honesty (no fluff, no bluff). You must explicitly include instructions to produce a clean, clear text output, avoiding noisy formatting symbols (such as *$, #, extra asterisks, or hashes) and strictly prohibiting any image markdown syntax, placeholders, or media brackets.`;
 
     const userText = `Analyze this task and generate the output:
 Objective: "${input.taskDescription}"
 ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
 
-    if (input.settings?.useOllama) {
-      try {
-        let response = '';
-        const userContent: any[] = [{ type: "text", text: userText }];
-        if (input.imageUri) {
-          userContent.push({
-            type: "image_url",
-            image_url: {
-              url: input.imageUri
-            }
-          });
-        }
+    // Force local Ollama engine with gemma2:2b as required
+    const settings = {
+      ...input.settings,
+      useOllama: true,
+      ollamaModel: 'gemma2:2b',
+      localEngine: 'ollama' as const
+    };
 
-        if (input.settings.localEngine === 'python') {
-          const activeUrl = input.settings.pythonServerUrl || 'http://127.0.0.1:8000';
-          console.log(`[PromptPilot] Routing task using local Python Server: ${activeUrl}`);
-          
-          response = await executePythonChat(
-            activeUrl,
-            [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userContent }
-            ],
-            0.1
-          );
-        } else {
-          const activeModel = input.settings.ollamaModel || 'gemma2:2b';
-          const activeUrl = input.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-          console.log(`[PromptPilot] Routing task using local Ollama model: ${activeModel}`);
-
-          response = await executeOllamaChat(
-            activeUrl,
-            activeModel,
-            [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userContent as any }
-            ],
-            0.1,
-            { type: 'json_object' }
-          );
-        }
-
-        console.log("[PromptPilot] Ollama raw routing response:", response);
-        
-        // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
-        response = response.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
-
-        let cleaned = response.trim();
-        if (cleaned.startsWith('```')) {
-          cleaned = cleaned.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '').trim();
-        }
-
-        let parsedJson;
-        try {
-          parsedJson = JSON.parse(cleaned);
-        } catch (e) {
-          const match = cleaned.match(/\{[\s\S]*\}/);
-          if (match) {
-            try {
-              parsedJson = JSON.parse(match[0]);
-            } catch (innerE) {
-              throw new Error(`Could not parse inner JSON: ${match[0]}`);
-            }
-          } else {
-            throw new Error(`Could not parse JSON response: ${cleaned}`);
+    try {
+      let response = '';
+      const userContent: any[] = [{ type: "text", text: userText }];
+      if (input.imageUri) {
+        userContent.push({
+          type: "image_url",
+          image_url: {
+            url: input.imageUri
           }
-        }
-
-        const parsedOutput = AnalyzeTaskOutputSchema.parse(parsedJson);
-        console.log("[PromptPilot] Ollama routing success:", parsedOutput);
-        return parsedOutput;
-
-      } catch (error: any) {
-        console.warn(`[PromptPilot] Ollama/Python local routing failed, falling back to Hugging Face Cloud API:`, error);
-        // Do not throw, allow execution to fall through to Hugging Face Cloud fallback
+        });
       }
-    }
 
-    let lastError: any = null;
+      const activeModel = settings.ollamaModel;
+      const activeUrl = settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      console.log(`[PromptPilot] Routing task using local Ollama model: ${activeModel}`);
 
-    // Try routing models in sequence
-    for (const model of ROUTING_MODELS) {
+      response = await executeOllamaChat(
+        activeUrl,
+        activeModel,
+        [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userContent as any }
+        ],
+        0.1,
+        { type: 'json_object' }
+      );
+
+      console.log("[PromptPilot] Ollama raw routing response:", response);
+      
+      // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
+      response = response.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
+
+      let cleaned = response.trim();
+      if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '').trim();
+      }
+
+      let parsedJson;
       try {
-        console.log(`[PromptPilot] Routing task using Hugging Face model: ${model}`);
-        
-        const userContent: any[] = [{ type: "text", text: userText }];
-        if (input.imageUri) {
-          userContent.push({
-            type: "image_url",
-            image_url: {
-              url: input.imageUri
-            }
-          });
-        }
-
-        const response = await hfClient.chat.completions.create({
-          model: model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userContent as any }
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.1
-          });
-
-          const content = response.choices[0]?.message?.content;
-          if (!content) {
-            throw new Error(`Empty response from Hugging Face model ${model}`);
-          }
-
-          console.log("[PromptPilot] Hugging Face raw response content:", content);
-          
-          // Clean up markdown block wraps if present
-          let cleaned = content.trim();
-          if (cleaned.startsWith('```')) {
-            cleaned = cleaned.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '').trim();
-          }
-
-          let parsedJson;
+        parsedJson = JSON.parse(cleaned);
+      } catch (e) {
+        const match = cleaned.match(/\{[\s\S]*\}/);
+        if (match) {
           try {
-            parsedJson = JSON.parse(cleaned);
-          } catch (e) {
-            const match = cleaned.match(/\{[\s\S]*\}/);
-            if (match) {
-              try {
-                parsedJson = JSON.parse(match[0]);
-              } catch (innerE) {
-                throw new Error(`Could not parse inner JSON: ${match[0]}`);
-              }
-            } else {
-              throw new Error(`Could not parse JSON response: ${cleaned}`);
-            }
+            parsedJson = JSON.parse(match[0]);
+          } catch (innerE) {
+            throw new Error(`Could not parse inner JSON: ${match[0]}`);
           }
-
-          // Parse and validate the response
-          const parsedOutput = AnalyzeTaskOutputSchema.parse(parsedJson);
-          console.log("[PromptPilot] Routing success:", parsedOutput);
-          return parsedOutput;
-
-      } catch (error: any) {
-        console.error(`[PromptPilot] Routing error with model ${model}:`, error);
-        lastError = error;
-        // Fallback to the next model in the list
+        } else {
+          throw new Error(`Could not parse JSON response: ${cleaned}`);
+        }
       }
-    }
 
-    throw new Error(`Orchestration routing failed: ${lastError?.message || lastError}`);
+      const parsedOutput = AnalyzeTaskOutputSchema.parse(parsedJson);
+      console.log("[PromptPilot] Ollama routing success:", parsedOutput);
+      return parsedOutput;
+
+    } catch (error: any) {
+      console.error(`[PromptPilot] Local routing failed:`, error);
+      throw error;
+    }
   } catch (error: any) {
     console.error(`[analyzeTaskAndGeneratePrompt] Server Action Error:`, error);
     return {

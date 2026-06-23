@@ -14,31 +14,31 @@ class DashboardPage(BasePage):
 
     # Home Tab (R&D Mode) Locators
     MISSION_INPUT = (By.ID, "objective-input")
-    EXECUTE_MISSION_BTN = (By.XPATH, "//button[contains(., 'Execute Mission')]")
+    EXECUTE_MISSION_BTN = (By.ID, "execute-mission-btn")
     SYNCING_INDICATOR = (By.XPATH, "//button[contains(., 'Syncing...')]")
-    AUTO_EXECUTE_BTN = (By.XPATH, "//button[contains(., 'Auto-Execute')]")
+    AUTO_EXECUTE_BTN = (By.ID, "auto-execute-btn")
     EXECUTING_INDICATOR = (By.XPATH, "//button[contains(., 'Executing...')]")
     RESULT_PROMPT_CONTAINER = (By.XPATH, "//div[contains(@class, 'font-mono')]")
 
     # Fleet Tab Locators
-    SUBMIT_MODEL_BTN = (By.XPATH, "//button[contains(., 'Submit a Model')]")
+    SUBMIT_MODEL_BTN = (By.ID, "submit-model-btn")
     MODEL_NAME_INPUT = (By.ID, "modelName")
     MODEL_URL_INPUT = (By.ID, "modelUrl")
     MODEL_DESC_INPUT = (By.ID, "description")
-    CONFIRM_ENTRY_BTN = (By.XPATH, "//button[contains(., 'Confirm Entry')]")
+    CONFIRM_ENTRY_BTN = (By.ID, "confirm-model-btn")
 
     # Toast Locators
     TOAST_ALERT = (By.XPATH, "//ol[contains(@dir, 'ltr')]/li")
 
     # Co-Founder Mode Switcher Locators (in Home tab)
-    RD_MODE_BTN = (By.XPATH, "//button[contains(., 'R&D Mode')]")
-    STARTUP_COFOUNDER_BTN = (By.XPATH, "//button[contains(., 'Startup Co-Founder')]")
+    RD_MODE_BTN = (By.ID, "rd-mode-btn")
+    STARTUP_COFOUNDER_BTN = (By.ID, "cofounder-mode-btn")
     
     # Co-Founder Profile Locators
     STARTUP_IDEA_INPUT = (By.ID, "startup-idea")
-    STARTUP_SECTOR_INPUT = (By.XPATH, "//input[@placeholder='e.g. SaaS, Fintech, Agritech']")
-    STARTUP_STAGE_INPUT = (By.XPATH, "//input[@placeholder='Idea / Pre-Seed / Seed']")
-    STARTUP_ACTIVATE_BTN = (By.XPATH, "//button[contains(., 'Activate Co-Founder') or contains(., 'Update Profile')]")
+    STARTUP_SECTOR_INPUT = (By.ID, "startup-sector")
+    STARTUP_STAGE_INPUT = (By.ID, "startup-stage")
+    STARTUP_ACTIVATE_BTN = (By.ID, "startup-activate-btn")
 
     # Navigation Actions
     def switch_to_home(self):
@@ -119,8 +119,8 @@ class DashboardPage(BasePage):
             return False
 
     # History Tab Locators
-    HISTORY_SEARCH_INPUT = (By.XPATH, "//input[contains(@placeholder, 'Search history')]")
-    MISSION_LOG_HEADER = (By.XPATH, "//h2[contains(., 'Mission Log') or contains(., 'MISSION')]")
+    HISTORY_SEARCH_INPUT = (By.ID, "history-search-input")
+    MISSION_LOG_HEADER = (By.XPATH, "//h1[contains(., 'Mission Log') or contains(., 'MISSION')]")
     SECURITY_LOCK_MSG = (By.XPATH, "//*[contains(text(), 'Security Lock')]")
     ROUTING_ONLINE_BADGE = (By.XPATH, "//*[contains(text(), 'Routing Online')]")
 

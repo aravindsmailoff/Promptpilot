@@ -29,62 +29,187 @@ export interface CoFounderInput {
 
 const MODULE_PROMPTS: Record<CoFounderModule, (input: CoFounderInput) => { system: string; user: string }> = {
   validate: (input) => ({
-    system: `You are a brutally honest startup analyst with deep knowledge of Indian and global markets.
-Provide data-driven, no-fluff validation reports. Output ONLY valid JSON. Keep ALL descriptions extremely brief (under 10 words per value) to ensure generation takes under 3 seconds.
-If validationScore >= 60, set qualifiesForGovtFunding to true, name Indian schemes, and urge applying for recognition.`,
-    user: `Validate this startup and return ONLY this JSON:
+    system: `You are a world-class startup evaluation engine combining the expertise of a Venture Capital Analyst, Product Manager, Market Research Analyst, Customer Discovery Expert, and Serial Founder.
+Your job is to help a founder decide: "Should I build this?" with a rigorous 12-dimension evidence-based analysis.
+Output ONLY valid JSON. Never use vague statements. Every score must have an evidence-based reason. Keep all string values concise (max 12 words per value unless specified). Use specific numbers and real examples. Think like both an investor and a customer simultaneously.`,
+    user: `Evaluate this startup idea across 12 dimensions. Return ONLY this JSON:
 {
-  "validationScore": <number 0-100>,
-  "verdict": "<'HIGH DEMAND' | 'MODERATE DEMAND' | 'LOW DEMAND' | 'SATURATED MARKET'>",
-  "brutalHonesty": "<1 sentence assessment, max 12 words>",
-  "marketSize": {
-    "TAM": "<TAM in INR, e.g. ₹500 Cr>",
-    "SAM": "<SAM in INR>",
-    "SOM": "<SOM in INR>"
+  "verdict": "<'STRONGLY VALIDATE' | 'VALIDATE FURTHER' | 'PIVOT RECOMMENDED' | 'DO NOT BUILD'>",
+  "overallScore": <number 0-100>,
+  "brutalHonesty": "<1 brutally honest sentence with specific evidence, max 15 words>",
+  "dimensions": {
+    "problem": {
+      "score": <0-10>,
+      "painLevel": "<'Low' | 'Medium' | 'High' | 'Critical'>",
+      "frequency": "<'Daily' | 'Weekly' | 'Monthly' | 'Rare'>",
+      "evidence": "<specific real evidence for this problem, max 15 words>",
+      "summary": "<2-3 word problem category>"
+    },
+    "customer": {
+      "score": <0-10>,
+      "primaryPersona": "<Role, Industry, max 6 words>",
+      "secondaryPersona": "<Role, Industry, max 6 words>",
+      "buyingPower": "<'Low' | 'Medium' | 'High'>",
+      "summary": "<customer clarity insight, max 10 words>"
+    },
+    "demand": {
+      "score": <0-10>,
+      "trend": "<'Rising' | 'Stable' | 'Declining'>",
+      "googleTrend": "<e.g. 'Rising +18% YoY'>",
+      "redditSignal": "<e.g. 'Positive 72%: strong complaints'>",
+      "productHuntSignal": "<e.g. 'Active category, 5+ launches/month'>",
+      "summary": "<demand evidence summary, max 10 words>"
+    },
+    "competition": {
+      "score": <0-10>,
+      "saturation": "<'None' | 'Low' | 'Medium' | 'High' | 'Extreme'>",
+      "directCount": <number>,
+      "indirectCount": <number>,
+      "topCompetitor": "<name and why they win, max 8 words>",
+      "summary": "<competitive landscape insight, max 10 words>"
+    },
+    "uvp": {
+      "score": <0-10>,
+      "existingSolutionFlaw": "<what existing solutions fail at, max 10 words>",
+      "differentiation": "<your unique angle, max 10 words>",
+      "switchReason": "<why users would switch, max 10 words>",
+      "weakFlag": <true|false>
+    },
+    "revenue": {
+      "score": <0-10>,
+      "primaryStream": "<e.g. SaaS ₹999/mo>",
+      "secondaryStream": "<e.g. Transaction fee 5%>",
+      "monetizationDifficulty": "<'Easy' | 'Moderate' | 'Difficult'>",
+      "summary": "<revenue model assessment, max 10 words>"
+    },
+    "technical": {
+      "score": <0-10>,
+      "mvpWeeks": <number>,
+      "teamRequired": ["<role1>", "<role2>"],
+      "complexity": "<'Low' | 'Medium' | 'High'>",
+      "summary": "<technical feasibility insight, max 10 words>"
+    },
+    "founderFit": {
+      "score": <0-10>,
+      "requiredExpertise": ["<expertise1, max 4 words>", "<expertise2, max 4 words>"],
+      "advantage": "<what gives an edge, max 10 words>",
+      "summary": "<founder fit assessment, max 8 words>"
+    },
+    "scalability": {
+      "score": <0-10>,
+      "local": "<local potential, max 6 words>",
+      "national": "<national potential, max 6 words>",
+      "global": "<global potential, max 6 words>",
+      "summary": "<scalability path, max 8 words>"
+    },
+    "risk": {
+      "score": <0-10>,
+      "topRisks": [
+        { "type": "<Technical|Market|Customer|Regulatory|Financial>", "risk": "<max 8 words>", "probability": "<Low|Medium|High>", "severity": "<Low|Medium|High>", "mitigation": "<max 8 words>" },
+        { "type": "<Technical|Market|Customer|Regulatory|Financial>", "risk": "<max 8 words>", "probability": "<Low|Medium|High>", "severity": "<Low|Medium|High>", "mitigation": "<max 8 words>" },
+        { "type": "<Technical|Market|Customer|Regulatory|Financial>", "risk": "<max 8 words>", "probability": "<Low|Medium|High>", "severity": "<Low|Medium|High>", "mitigation": "<max 8 words>" }
+      ]
+    },
+    "investorAppeal": {
+      "score": <0-10>,
+      "vcVerdict": "<what a VC would say, max 12 words>",
+      "defensibility": "<'Low' | 'Medium' | 'High'>",
+      "growthPotential": "<'Linear' | 'Exponential'>",
+      "summary": "<investor appeal summary, max 10 words>"
+    },
+    "mvpRoadmap": {
+      "weeks": [
+        { "week": 1, "action": "<Customer Interviews>", "goal": "<measurable goal, max 8 words>" },
+        { "week": 2, "action": "<Landing Page Test>", "goal": "<measurable goal, max 8 words>" },
+        { "week": 3, "action": "<Prototype Build>", "goal": "<measurable goal, max 8 words>" },
+        { "week": 4, "action": "<Pilot Users>", "goal": "<measurable goal, max 8 words>" },
+        { "week": 5, "action": "<Pricing Validation>", "goal": "<measurable goal, max 8 words>" },
+        { "week": 6, "action": "<Launch>", "goal": "<measurable goal, max 8 words>" }
+      ]
+    }
   },
-  "competitorCount": <number>,
-  "keyRisks": ["<risk1, max 5 words>", "<risk2, max 5 words>"],
-  "keyOpportunities": ["<opportunity1, max 5 words>", "<opportunity2, max 5 words>"],
-  "suggestedNiche": "<niche, max 5 words>",
-  "redditSignal": "<e.g. 'Positive (70%): Strong interest'>",
-  "googleTrendSignal": "<e.g. 'Rising (+15% YoY)'>",
-  "validationSteps": ["<step1, max 6 words>", "<step2, max 6 words>"],
+  "marketSize": {
+    "TAM": "<e.g. ₹45,000 Cr>",
+    "SAM": "<e.g. ₹5,000 Cr>",
+    "SOM": "<e.g. ₹500 Cr>",
+    "assumptions": ["<assumption1, max 8 words>", "<assumption2, max 8 words>"]
+  },
+  "swot": {
+    "strengths": ["<strength1, max 8 words>", "<strength2, max 8 words>"],
+    "weaknesses": ["<weakness1, max 8 words>", "<weakness2, max 8 words>"],
+    "opportunities": ["<opportunity1, max 8 words>", "<opportunity2, max 8 words>"],
+    "threats": ["<threat1, max 8 words>", "<threat2, max 8 words>"]
+  },
+  "scorecard": {
+    "problem": <0-10>,
+    "customer": <0-10>,
+    "demand": <0-10>,
+    "competition": <0-10>,
+    "uvp": <0-10>,
+    "revenue": <0-10>,
+    "technical": <0-10>,
+    "scalability": <0-10>,
+    "risk": <0-10>,
+    "investorAppeal": <0-10>
+  },
+  "recommendations": {
+    "top5Improvements": ["<improvement1, max 10 words>", "<improvement2, max 10 words>", "<improvement3, max 10 words>", "<improvement4, max 10 words>", "<improvement5, max 10 words>"],
+    "fastestExperiments": ["<experiment1, max 10 words>", "<experiment2, max 10 words>"],
+    "niches": ["<niche1, max 6 words>", "<niche2, max 6 words>"],
+    "acquisitionChannels": ["<channel1, max 5 words>", "<channel2, max 5 words>", "<channel3, max 5 words>"],
+    "pricingSuggestions": ["<pricing1, max 8 words>", "<pricing2, max 8 words>"]
+  },
   "qualifiesForGovtFunding": <true|false>,
-  "govtFundingReason": "<reason and schemes, max 15 words, urge applying>"
+  "govtFundingReason": "<specific schemes and reason, max 15 words>"
 }
 
 Startup Idea: "${input.idea}"
-Sector: "${input.sector || 'Not specified'}"
+Sector: "${input.sector || 'Technology'}"
 Stage: "${input.stage || 'Idea'}"
-Target Market: "${input.targetMarket || 'India'}"`,
+Revenue Model: "${input.revenueModel || 'SaaS'}"
+Target Market: "${input.targetMarket || 'India'}"
+Team Size: "${input.teamSize || 'Solo founder'}"`,
   }),
 
   competitors: (input) => ({
-    system: `You are a competitive intelligence analyst specializing in Indian startup ecosystems.
-Output ONLY valid JSON. Keep all descriptions under 5 words per field to ensure under 3-second execution.`,
-    user: `Generate competitor analysis. Return ONLY this JSON (include exactly 2 key competitors):
+    system: `You are a competitive intelligence analyst. Discover, rank, and categorize exactly 10 real-world, relevant competitors (large, mid-sized, startups, open-source alternatives, emerging, regional, or niche companies).
+Output ONLY valid JSON. Keep all descriptions under 10 words to ensure rapid execution. Prefer real companies. Avoid duplicates.`,
+    user: `Generate a competitor intelligence report with exactly 10 real competitors for this startup idea. Rank them in descending order by market relevance and Similarity Score (calculated using: Relevance 40%, Target Audience 20%, Feature Overlap 20%, Market Position 10%, Popularity 10%).
+
+Return ONLY this JSON structure:
 {
   "competitors": [
     {
-      "name": "<Company name>",
-      "type": "<'Direct' | 'Indirect'>",
-      "founded": "<year>",
-      "funding": "<funding or 'Bootstrapped'>",
-      "pricing": "<pricing range>",
-      "keyFeature": "<key feature, max 5 words>",
-      "weakness": "<weakness, max 5 words>",
-      "geography": "<primary market>",
-      "website": "<URL>"
+      "name": "<Real Company name>",
+      "website": "<Official website URL, e.g. https://domain.com>",
+      "companyType": "<'Startup' | 'SME' | 'Enterprise' | 'Open Source'>",
+      "category": "<'Direct' | 'Indirect' | 'Open Source' | 'Emerging'>",
+      "country": "<Country of origin>",
+      "fundingStatus": "<Funding status, e.g. Bootstrapped / Seed / Series A / Public>",
+      "shortDescription": "<short description, max 8 words>",
+      "whyItIsACompetitor": "<why they compete, max 8 words>",
+      "similarityScore": <number 0-100 based on weights>,
+      "marketSegment": "<segment, e.g. Developer Tools / HR Tech>",
+      "pricingModel": "<pricing, e.g. Free / Premium / Paid / Open Source>",
+      "keyFeatures": ["<feature 1, max 4 words>", "<feature 2, max 4 words>"],
+      "githubDetails": {
+        "repoName": "<owner/repo or null>",
+        "stars": <number of stars or null>,
+        "lastUpdated": "<YYYY-MM or null>",
+        "license": "<license name or null>",
+        "activeContributors": "<number/text or null>"
+      }
     }
   ],
-  "differentiationStrategy": "<differentiation strategy, max 12 words>",
+  "differentiationStrategy": "<how to differentiate, max 12 words>",
   "blueOceanOpportunity": "<untapped angle, max 12 words>",
-  "pricingRecommendation": "<recommended pricing, max 6 words>",
-  "winCondition": "<win condition, max 10 words>"
+  "pricingRecommendation": "<pricing recommendation, max 8 words>",
+  "winCondition": "<key win condition, max 10 words>"
 }
 
 Startup Idea: "${input.idea}"
-Sector: "${input.sector || 'Technology'}"`,
+Sector: "${input.sector || 'Technology'}"
+Target Market: "${input.targetMarket || 'Global'}"`,
   }),
 
   'pitch-deck': (input) => ({
@@ -190,38 +315,142 @@ Startup Context:
   }),
 
   discovery: (input) => ({
-    system: `You are a customer discovery expert. Output ONLY valid JSON. Keep all answers extremely short and concise to run under 3 seconds.`,
-    user: `Generate customer discovery plan. Return ONLY this JSON (exactly 1 target persona and 3 questions):
+    system: `You are a world-class Customer Discovery Expert, Growth Strategist, UX Researcher, and Startup Founder.
+Your job is to produce a founder-grade customer intelligence report that answers: Who exactly has this problem? Who will pay? Who has the most pain? Which segment to target first?
+Output ONLY valid JSON. Every claim must include specific reasoning. Never use vague demographics. Think like a customer research team, not a marketing copywriter.`,
+    user: `Generate a comprehensive customer discovery report across 15 dimensions. Return ONLY this JSON:
 {
-  "targetPersonas": [
+  "verdict": "<'STRONG CUSTOMER VALIDATION' | 'MODERATE VALIDATION' | 'WEAK VALIDATION' | 'CRITICAL RISK'>",
+  "segments": [
     {
-      "name": "<Persona name>",
-      "age": "<age range>",
-      "role": "<job role>",
-      "painPoints": ["<pain1, max 4 words>", "<pain2, max 4 words>"],
-      "goals": ["<goal1, max 4 words>", "<goal2, max 4 words>"],
-      "whereToFind": ["<channel1>", "<channel2>"],
-      "willingnessToPay": "<low/med/high with brief reason, max 6 words>"
+      "rank": 1,
+      "type": "<'Primary' | 'Secondary' | 'Tertiary'>",
+      "name": "<Segment name, max 5 words>",
+      "description": "<who they are, max 10 words>",
+      "painSeverity": <0-10>,
+      "willingnessToPay": "<'Low' | 'Medium' | 'High'>",
+      "marketSize": "<e.g. 2M users in India>",
+      "revenuePotenial": "<e.g. ₹500 Cr>",
+      "earlyAdopterScore": <0-10>
+    },
+    {
+      "rank": 2,
+      "type": "<'Primary' | 'Secondary' | 'Tertiary'>",
+      "name": "<Segment name, max 5 words>",
+      "description": "<who they are, max 10 words>",
+      "painSeverity": <0-10>,
+      "willingnessToPay": "<'Low' | 'Medium' | 'High'>",
+      "marketSize": "<e.g. 500K users>",
+      "revenuePotenial": "<e.g. ₹100 Cr>",
+      "earlyAdopterScore": <0-10>
     }
   ],
-  "discoveryQuestions": [
-    {"question": "<Question 1, max 10 words>", "purpose": "<purpose, max 5 words>"},
-    {"question": "<Question 2, max 10 words>", "purpose": "<purpose, max 5 words>"},
-    {"question": "<Question 3, max 10 words>", "purpose": "<purpose, max 5 words>"}
-  ],
-  "distributionPlan": {
-    "channels": ["<channel 1>", "<channel 2>"],
-    "expectedResponseRate": "<X-Y%>",
-    "targetResponses": <number>,
-    "timelineWeeks": <number>
+  "icp": {
+    "age": "<age range>",
+    "occupation": "<job title or role>",
+    "industry": "<industry>",
+    "incomeLevel": "<e.g. ₹8-20 LPA>",
+    "geography": "<city / region / country>",
+    "goals": ["<goal1, max 6 words>", "<goal2, max 6 words>"],
+    "frustrations": ["<frustration1, max 6 words>", "<frustration2, max 6 words>"],
+    "buyingBehavior": "<how they buy, max 8 words>",
+    "techAdoption": "<'Laggard' | 'Early Majority' | 'Early Adopter' | 'Innovator'>",
+    "preferredChannels": ["<channel1>", "<channel2>"],
+    "confidenceScore": <0-10>
   },
-  "validationThreshold": "<action signal, max 10 words>"
+  "painAnalysis": {
+    "coreProblem": "<specific problem, max 10 words>",
+    "rootCause": "<root cause, max 8 words>",
+    "emotionalImpact": "<emotional impact, max 8 words>",
+    "financialImpact": "<financial impact with number, max 8 words>",
+    "productivityImpact": "<productivity impact, max 8 words>",
+    "painSeverityScore": <0-10>,
+    "frequency": "<'Daily' | 'Weekly' | 'Monthly' | 'Rare'>"
+  },
+  "jtbd": {
+    "functional": "<functional job, max 8 words>",
+    "emotional": "<emotional job, max 8 words>",
+    "social": "<social job, max 8 words>"
+  },
+  "existingSolutions": [
+    { "name": "<tool/solution>", "flaw": "<why it fails, max 8 words>", "switchingDifficulty": <0-10> },
+    { "name": "<tool/solution>", "flaw": "<why it fails, max 8 words>", "switchingDifficulty": <0-10> }
+  ],
+  "buyingTriggers": [
+    { "rank": 1, "trigger": "<event, max 8 words>", "importance": "<'High' | 'Medium' | 'Low'>" },
+    { "rank": 2, "trigger": "<event, max 8 words>", "importance": "<'High' | 'Medium' | 'Low'>" },
+    { "rank": 3, "trigger": "<event, max 8 words>", "importance": "<'High' | 'Medium' | 'Low'>" }
+  ],
+  "willingnessToPayAnalysis": {
+    "freeTier": "<% who would use free, and why>",
+    "budgetBuyers": "<price range and segment, max 8 words>",
+    "premiumBuyers": "<price range and segment, max 8 words>",
+    "priceSensitivityScore": <0-10>,
+    "likelihoodToPayScore": <0-10>,
+    "whyTheyPay": "<reason, max 8 words>",
+    "whyTheyRefuse": "<reason, max 8 words>"
+  },
+  "acquisitionChannels": [
+    { "rank": 1, "channel": "<channel name>", "platform": "<specific platform>", "tactic": "<how to reach, max 8 words>", "cost": "<'Free' | 'Low' | 'Medium' | 'High'>" },
+    { "rank": 2, "channel": "<channel name>", "platform": "<specific platform>", "tactic": "<how to reach, max 8 words>", "cost": "<'Free' | 'Low' | 'Medium' | 'High'>" },
+    { "rank": 3, "channel": "<channel name>", "platform": "<specific platform>", "tactic": "<how to reach, max 8 words>", "cost": "<'Free' | 'Low' | 'Medium' | 'High'>" }
+  ],
+  "voiceOfCustomer": {
+    "commonComplaints": ["<complaint1, max 10 words>", "<complaint2, max 10 words>", "<complaint3, max 10 words>"],
+    "desiredOutcomes": ["<outcome1, max 8 words>", "<outcome2, max 8 words>"],
+    "quotes": ["<realistic customer quote, max 12 words>", "<realistic customer quote, max 12 words>"]
+  },
+  "objections": [
+    { "objection": "<objection, max 6 words>", "mitigation": "<how to overcome, max 8 words>" },
+    { "objection": "<objection, max 6 words>", "mitigation": "<how to overcome, max 8 words>" },
+    { "objection": "<objection, max 6 words>", "mitigation": "<how to overcome, max 8 words>" }
+  ],
+  "discoveryQuestions": [
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" },
+    { "question": "<specific open-ended question, max 12 words>", "purpose": "<what it uncovers, max 5 words>" }
+  ],
+  "validationRoadmap": [
+    { "week": 1, "action": "Interview 20 Prospects", "goal": "<measurable target, max 8 words>" },
+    { "week": 2, "action": "Landing Page Test", "goal": "<measurable target, max 8 words>" },
+    { "week": 3, "action": "Prototype Feedback", "goal": "<measurable target, max 8 words>" },
+    { "week": 4, "action": "Pilot Program", "goal": "<measurable target, max 8 words>" },
+    { "week": 5, "action": "Pricing Validation", "goal": "<measurable target, max 8 words>" },
+    { "week": 6, "action": "Retention Validation", "goal": "<measurable target, max 8 words>" }
+  ],
+  "scorecard": {
+    "problemSeverity": <0-10>,
+    "customerClarity": <0-10>,
+    "marketAccessibility": <0-10>,
+    "willingnessToPay": <0-10>,
+    "earlyAdopterPotential": <0-10>,
+    "retentionPotential": <0-10>,
+    "acquisitionEase": <0-10>,
+    "revenuePotential": <0-10>
+  },
+  "recommendations": {
+    "bestSegmentFirst": "<which segment and why, max 12 words>",
+    "fastest100Users": "<fastest path to 100 users, max 12 words>",
+    "pricingStrategy": "<recommended pricing, max 10 words>",
+    "biggestCustomerRisk": "<biggest risk, max 10 words>",
+    "segmentToAvoid": "<which segment to avoid and why, max 10 words>",
+    "mostValuableInsight": "<key insight discovered, max 12 words>"
+  }
 }
 
 Startup Idea: "${input.idea}"
 Sector: "${input.sector || 'Technology'}"
+Stage: "${input.stage || 'Idea'}"
 Target Market: "${input.targetMarket || 'India'}"`,
   }),
+
 
   financials: (input) => ({
     system: `You are a startup CFO. Output ONLY valid JSON. Keep all values extremely concise to ensure execution under 3 seconds. All amounts in INR.`,
@@ -357,87 +586,243 @@ Stage: "${input.stage || 'Pre-Seed'}"`,
   }),
 
   hiring: (input) => ({
-    system: `You are a startup hiring expert. Output ONLY valid JSON. Keep all descriptions extremely concise to run under 3 seconds.`,
-    user: `Generate hiring plan. Return ONLY this JSON (exactly 1 priority hire):
+    system: `You are a world-class Startup CTO, VP of Engineering, Talent Acquisition Lead, and Venture Studio Team Architect.
+Your job is to produce a founder-grade workforce strategy and team building plan. Validate every hiring recommendation against the startup's stage, sector, technology, geography, and team size.
+Output ONLY valid JSON. Every recommendation must be highly specific, evidence-backed, and direct. Avoid generic lists. Keep all string values concise (max 12 words per value unless specified) to ensure clean execution.`,
+    user: `Generate a comprehensive startup workforce strategy and team building plan. Return ONLY this JSON:
 {
-  "hiringPhilosophy": "<philosophy, max 10 words>",
-  "priorityHires": [
+  "verdict": "<'AI-FIRST AUTOMATED' | 'LEAN MVP CONTRACTORS' | 'FULL-TIME BUILD' | 'HYBRID AGENCY-FOUNDER'>",
+  "overallTalentUrgency": <number 0-100>,
+  "philosophy": "<hiring philosophy, max 15 words>",
+  "scorecard": {
+    "talentScarcity": <number 0-10>,
+    "hiringUrgency": <number 0-10>,
+    "costEfficiency": <number 0-10>,
+    "technicalComplexity": <number 0-10>,
+    "automationPotential": <number 0-10>,
+    "founderGapScore": <number 0-10>
+  },
+  "skillsGap": {
+    "foundingStrengths": ["<strength1, max 8 words>", "<strength2, max 8 words>"],
+    "criticalMissing": ["<missing skill 1, max 8 words>", "<missing skill 2, max 8 words>"],
+    "minimumViableTeam": "<summary, max 12 words>"
+  },
+  "hiringRoadmap": [
     {
-      "priority": 1,
-      "role": "<Job title>",
-      "whyFirst": "<reason, max 6 words>",
-      "salaryRange_INR": "<X-Y LPA>",
-      "mustHaveSkills": ["<skill1>", "<skill2>"],
-      "niceToHave": ["<skill1>", "<skill2>"],
-      "redFlags": ["<red flag 1, max 4 words>", "<red flag 2, max 4 words>"],
-      "whereToFind": ["<platform1>", "<platform2>"],
-      "equityRange": "<X-Y%>"
+      "phase": 1,
+      "title": "Phase 1: MVP Build",
+      "timeframe": "Month 1-3",
+      "roles": [
+        {
+          "role": "<Role Title>",
+          "type": "<'Full-Time' | 'Part-Time' | 'Contractor' | 'Freelancer' | 'Agency' | 'AI Agent'>",
+          "urgency": "<'Critical' | 'High' | 'Medium'>",
+          "cost": "<est cost, e.g. ₹60k-80k/mo>",
+          "timeframe": "Immediate",
+          "whyCritical": "<why critical, max 10 words>",
+          "skills": ["<skill1>", "<skill2>", "<skill3>"],
+          "kpi": "<measurable KPI, max 8 words>",
+          "redFlags": ["<red flag 1, max 5 words>", "<red flag 2, max 5 words>"]
+        }
+      ]
+    },
+    {
+      "phase": 2,
+      "title": "Phase 2: PMF & Growth",
+      "timeframe": "Month 4-9",
+      "roles": [
+        {
+          "role": "<Role Title>",
+          "type": "<'Full-Time' | 'Part-Time' | 'Contractor' | 'Freelancer' | 'Agency' | 'AI Agent'>",
+          "urgency": "<'High' | 'Medium' | 'Optional'>",
+          "cost": "<est cost, e.g. ₹80k-1.2L/mo>",
+          "timeframe": "Month 4",
+          "whyCritical": "<why critical, max 10 words>",
+          "skills": ["<skill1>", "<skill2>"],
+          "kpi": "<measurable KPI, max 8 words>",
+          "redFlags": ["<red flag 1, max 5 words>", "<red flag 2, max 5 words>"]
+        }
+      ]
+    },
+    {
+      "phase": 3,
+      "title": "Phase 3: Scale & Core",
+      "timeframe": "Month 10-18",
+      "roles": [
+        {
+          "role": "<Role Title>",
+          "type": "<'Full-Time' | 'Part-Time' | 'Contractor' | 'Freelancer' | 'Agency' | 'AI Agent'>",
+          "urgency": "<'Medium' | 'Optional'>",
+          "cost": "<est cost, e.g. ₹15-20 LPA>",
+          "timeframe": "Month 10",
+          "whyCritical": "<why critical, max 10 words>",
+          "skills": ["<skill1>", "<skill2>"],
+          "kpi": "<measurable KPI, max 8 words>",
+          "redFlags": ["<red flag 1, max 5 words>", "<red flag 2, max 5 words>"]
+        }
+      ]
     }
   ],
-  "jobDescriptionTemplate": {
-    "role": "<Critical first hire role>",
-    "aboutUs": "<about us, max 10 words>",
-    "whatYoullDo": ["<responsibility 1, max 5 words>", "<responsibility 2, max 5 words>"],
-    "whatWeLookFor": ["<requirement 1, max 5 words>", "<requirement 2, max 5 words>"],
-    "whatWeOffer": ["<perk 1, max 5 words>", "<perk 2, max 5 words>"]
+  "aiAutomation": [
+    {
+      "area": "<area, e.g. QA Testing>",
+      "tool": "<recommended tool/agent>",
+      "savings": "<e.g. ₹30k/mo, 10h/wk>",
+      "safeguard": "<human check safeguard, max 8 words>"
+    },
+    {
+      "area": "<area, e.g. Customer Support>",
+      "tool": "<recommended tool/agent>",
+      "savings": "<e.g. ₹40k/mo, 15h/wk>",
+      "safeguard": "<human check safeguard, max 8 words>"
+    }
+  ],
+  "recruitmentStrategy": {
+    "platforms": ["<platform1>", "<platform2>", "<platform3>"],
+    "sourcingTactics": ["<tactic 1, max 10 words>", "<tactic 2, max 10 words>"],
+    "interviewProcess": ["<step 1, max 8 words>", "<step 2, max 8 words>", "<step 3, max 8 words>"]
   },
-  "hiringMistakesToAvoid": ["<mistake 1, max 5 words>", "<mistake 2, max 5 words>"],
-  "freeHiringPlatforms": ["<platform 1>", "<platform 2>"],
-  "interviewProcess": ["<step 1, max 4 words>", "<step 2, max 4 words>"]
+  "firstHireJD": {
+    "role": "<First critical role title>",
+    "aboutUs": "<about us, max 15 words>",
+    "responsibilities": ["<responsibility 1, max 10 words>", "<responsibility 2, max 10 words>", "<responsibility 3, max 10 words>"],
+    "requirements": ["<requirement 1, max 10 words>", "<requirement 2, max 10 words>", "<requirement 3, max 10 words>"],
+    "compensation": "<comp & equity, e.g. ₹10-15 LPA + 1% equity>",
+    "firstWeekGoal": "<first week milestone, max 10 words>"
+  },
+  "mistakesToAvoid": ["<mistake 1, max 10 words>", "<mistake 2, max 10 words>", "<mistake 3, max 10 words>"],
+  "strategicRecommendations": ["<recommendation 1, max 10 words>", "<recommendation 2, max 10 words>", "<recommendation 3, max 10 words>"]
 }
 
 Startup Idea: "${input.idea}"
 Sector: "${input.sector || 'Technology'}"
 Stage: "${input.stage || 'Pre-Seed'}"
+Location: "${input.location || 'India'}"
 Team Size: "${input.teamSize || 'Just founders'}"`,
   }),
 
   schemes: (input) => ({
-    system: `You are an expert in Indian government startup schemes. Output ONLY valid JSON. Keep all values extremely concise to execute under 3 seconds.`,
-    user: `Match startup to government schemes. Return ONLY this JSON (exactly 2 matched schemes):
+    system: `You are a world-class Startup Funding Consultant, Government Grants Advisor, Policy Analyst, and Venture Funding Strategist specializing in Indian startup funding.
+Your job is to produce a founder-grade government funding intelligence report. Go beyond keyword matching — validate every scheme against the startup's stage, sector, technology, geography, and compliance requirements.
+Output ONLY valid JSON. Every claim must include specific reasoning. Think like a professional startup funding advisor doing due diligence.`,
+    user: `Generate a comprehensive government funding discovery report. Return ONLY this JSON:
 {
-  "eligibilitySummary": "<brief summary, max 10 words>",
-  "topRecommendation": "<scheme name and brief reason, max 10 words>",
+  "verdict": "<'EXCELLENT FUNDING OPPORTUNITY' | 'STRONG OPPORTUNITY' | 'MODERATE OPPORTUNITY' | 'WEAK OPPORTUNITY' | 'NO SIGNIFICANT MATCH'>",
+  "classification": {
+    "industry": "<e.g. AI/FinTech/AgriTech/EdTech/HealthTech/SaaS/DeepTech>",
+    "stage": "<e.g. Idea Stage/MVP Stage/Early Revenue/Growth Stage>",
+    "businessType": "<e.g. B2B/B2C/B2G/SaaS/Hardware>",
+    "innovationLevel": "<'Incremental Innovation' | 'Significant Innovation' | 'Deep Technology' | 'Research-Based Innovation'>",
+    "schemeMatchReadiness": <0-10>
+  },
   "matchedSchemes": [
     {
-      "name": "<Scheme name>",
-      "agency": "<Agency name>",
-      "amount": "<Funding amount>",
-      "type": "<Grant/Loan/Recognition/Incubation>",
-      "fitScore": <0-100>,
-      "fitReason": "<reason, max 6 words>",
-      "applicationSteps": ["<step 1, max 5 words>", "<step 2, max 5 words>"],
-      "deadline": "<Deadline/Rolling>",
-      "link": "<URL>",
-      "urgency": "<Apply Now/Apply This Month>"
+      "rank": 1,
+      "name": "<Official scheme name>",
+      "ministry": "<Ministry name>",
+      "agency": "<Implementing agency>",
+      "category": "<'Grant' | 'Loan' | 'Subsidy' | 'Tax Benefit' | 'Incubation' | 'Recognition'>",
+      "status": "<'Active' | 'Upcoming' | 'Rolling'>",
+      "fundingAmount": "<e.g. ₹50 Lakhs>",
+      "equityFree": <true|false>,
+      "relevanceScore": <0-100>,
+      "eligibilityStatus": "<'Eligible' | 'Partially Eligible' | 'Not Eligible'>",
+      "eligibilityScore": <0-10>,
+      "approvalProbability": <0-100>,
+      "whyItMatches": "<why this scheme fits, max 10 words>",
+      "eligibilityGap": "<what is missing if partial, max 8 words>",
+      "applicationDifficulty": "<'Easy' | 'Moderate' | 'Difficult' | 'Highly Competitive'>",
+      "link": "<official URL>"
     },
     {
-      "name": "<Scheme name>",
-      "agency": "<Agency name>",
-      "amount": "<Funding amount>",
-      "type": "<Grant/Loan/Recognition/Incubation>",
-      "fitScore": <0-100>,
-      "fitReason": "<reason, max 6 words>",
-      "applicationSteps": ["<step 1, max 5 words>", "<step 2, max 5 words>"],
-      "deadline": "<Deadline/Rolling>",
-      "link": "<URL>",
-      "urgency": "<Apply Now/Apply This Month>"
+      "rank": 2,
+      "name": "<Official scheme name>",
+      "ministry": "<Ministry name>",
+      "agency": "<Implementing agency>",
+      "category": "<'Grant' | 'Loan' | 'Subsidy' | 'Tax Benefit' | 'Incubation' | 'Recognition'>",
+      "status": "<'Active' | 'Upcoming' | 'Rolling'>",
+      "fundingAmount": "<e.g. ₹10 Lakhs>",
+      "equityFree": <true|false>,
+      "relevanceScore": <0-100>,
+      "eligibilityStatus": "<'Eligible' | 'Partially Eligible' | 'Not Eligible'>",
+      "eligibilityScore": <0-10>,
+      "approvalProbability": <0-100>,
+      "whyItMatches": "<why this scheme fits, max 10 words>",
+      "eligibilityGap": "<what is missing if partial, max 8 words>",
+      "applicationDifficulty": "<'Easy' | 'Moderate' | 'Difficult' | 'Highly Competitive'>",
+      "link": "<official URL>"
+    },
+    {
+      "rank": 3,
+      "name": "<Official scheme name>",
+      "ministry": "<Ministry name>",
+      "agency": "<Implementing agency>",
+      "category": "<'Grant' | 'Loan' | 'Subsidy' | 'Tax Benefit' | 'Incubation' | 'Recognition'>",
+      "status": "<'Active' | 'Upcoming' | 'Rolling'>",
+      "fundingAmount": "<e.g. ₹25 Lakhs>",
+      "equityFree": <true|false>,
+      "relevanceScore": <0-100>,
+      "eligibilityStatus": "<'Eligible' | 'Partially Eligible' | 'Not Eligible'>",
+      "eligibilityScore": <0-10>,
+      "approvalProbability": <0-100>,
+      "whyItMatches": "<why this scheme fits, max 10 words>",
+      "eligibilityGap": "<what is missing if partial, max 8 words>",
+      "applicationDifficulty": "<'Easy' | 'Moderate' | 'Difficult' | 'Highly Competitive'>",
+      "link": "<official URL>"
     }
   ],
-  "firstStepToday": "<action today, max 10 words>",
-  "dpiitRegistrationGuide": {
-    "isRequired": <true|false>,
-    "benefit": "<benefit, max 6 words>",
-    "howToApply": "<steps, max 10 words>"
+  "documentChecklist": {
+    "available": ["<doc1>", "<doc2>"],
+    "missing": ["<doc1>", "<doc2>"],
+    "optional": ["<doc1>"]
   },
-  "estimatedTotalFunding_INR": "<Total funding, e.g. ₹50L>"
+  "fundingRoadmap": [
+    { "phase": 1, "title": "Immediate Applications", "timeframe": "Now – 30 Days", "action": "<what to do, max 10 words>", "scheme": "<scheme name>" },
+    { "phase": 2, "title": "After MVP", "timeframe": "Month 2–4", "action": "<what to do, max 10 words>", "scheme": "<scheme name>" },
+    { "phase": 3, "title": "After Validation", "timeframe": "Month 4–8", "action": "<what to do, max 10 words>", "scheme": "<scheme name>" },
+    { "phase": 4, "title": "Growth Stage", "timeframe": "Month 8–18", "action": "<what to do, max 10 words>", "scheme": "<scheme name>" }
+  ],
+  "regulatoryIncentives": [
+    { "type": "<e.g. Tax Exemption / Patent Fee Reduction>", "benefit": "<benefit, max 8 words>", "annualSaving": "<₹ amount>" },
+    { "type": "<e.g. R&D Deduction / Export Incentive>", "benefit": "<benefit, max 8 words>", "annualSaving": "<₹ amount>" }
+  ],
+  "alternatives": {
+    "incubators": ["<incubator1>", "<incubator2>"],
+    "accelerators": ["<accelerator1>", "<accelerator2>"],
+    "competitions": ["<competition1>", "<competition2>"]
+  },
+  "actionPlan": {
+    "next7Days": ["<action1, max 8 words>", "<action2, max 8 words>"],
+    "next30Days": ["<action1, max 8 words>", "<action2, max 8 words>"],
+    "next60Days": ["<action1, max 8 words>"],
+    "next90Days": ["<action1, max 8 words>"]
+  },
+  "scorecard": {
+    "schemeMatch": <0-10>,
+    "eligibility": <0-10>,
+    "approvalProbability": <0-10>,
+    "fundingPotential": <0-10>,
+    "strategicValue": <0-10>,
+    "easeOfApplication": <0-10>
+  },
+  "totalPotentialFunding": "<total across eligible schemes, e.g. ₹75 Lakhs>",
+  "recommendations": {
+    "bestSchemeFirst": "<scheme name and why, max 10 words>",
+    "highestFundingOpportunity": "<scheme name and amount, max 8 words>",
+    "fastestApproval": "<scheme name and timeline, max 8 words>",
+    "lowestEffort": "<scheme name and reason, max 8 words>",
+    "biggestEligibilityGap": "<what is blocking most schemes, max 10 words>",
+    "mostValuableIncentive": "<most valuable non-cash benefit, max 8 words>"
+  }
 }
 
 Startup Idea: "${input.idea}"
 Sector: "${input.sector || 'Technology'}"
 Stage: "${input.stage || 'Idea'}"
-Location: "${input.location || 'India'}"`,
+Location: "${input.location || 'India'}"
+Revenue Model: "${input.revenueModel || 'SaaS'}"`,
   }),
+
 
   'cofounder-match': (input) => ({
     system: `You are a startup cofounder match maker. Output ONLY valid JSON. Keep all values extremely short to run under 3 seconds.`,
@@ -489,8 +874,8 @@ export async function runCoFounderModule(input: CoFounderInput): Promise<string>
       const ollamaModel = input.ollamaModel || 'gemma2:2b';
 
       console.log(`[CoFounder AI] Attempting local Ollama execution: ${ollamaUrl} (${ollamaModel})`);
-      const options = input.module === 'pitch-deck'
-        ? { numCtx: 4096, numPredict: 2048 }
+      const options = (input.module === 'pitch-deck' || input.module === 'validate' || input.module === 'discovery' || input.module === 'schemes' || input.module === 'hiring')
+        ? { numCtx: 4096, numPredict: 3072 }
         : undefined;
 
       response = await executeOllamaChat(

@@ -1,87 +1,87 @@
 {
-  "deckTitle": "Kirana AI: Revolutionizing Inventory Management for India's Small Retailers",
-  "tagline": "Unlocking the potential of Kirana stores with intelligent automation.",
+  "deckTitle": "Kirana AI: Revolutionizing Inventory Management in India",
+  "tagline": "Unlocking the potential of Kirana stores through intelligent automation.",
   "slides": [
     {
       "slideNumber": 1,
       "layout": "cover",
       "title": "Title / Vision",
-      "headline": "Empowering Kirana Stores to Achieve Unprecedented Growth Through AI-Driven Inventory Optimization",
-      "content": "- **Vision**: To create a seamless and intelligent inventory management solution for Kirana stores across India, empowering them to achieve unprecedented growth and profitability.\n- **Mission**:  To revolutionize the way Kirana stores operate by leveraging cutting-edge AI technology to optimize inventory levels, reduce waste, and maximize sales potential.\n- **Market Opportunity**: The Indian Kirana market is a vast and untapped opportunity. With millions of small retailers struggling with inefficient inventory management practices, we are poised to disrupt this sector.",
-      "speakerNote": "Unlocking the potential of Kirana stores through AI. Let's build the future of retail together."
+      "headline": "Empowering Kirana Stores with AI-Powered Inventory Optimization",
+      "content": "- **Vision**: To create a seamless and intelligent inventory management system for Kirana stores in India, enabling them to maximize profits and efficiency.\n- **Mission**:  To empower Kirana store owners with data-driven insights and automated solutions, fostering their growth and success.\n- **Market Opportunity**: The Indian Kirana sector is booming, with millions of small retailers struggling with inventory management challenges. Our AI-powered solution offers a unique opportunity to disrupt this market.",
+      "speakerNote": "Unlocking the potential for Kirana stores through intelligent automation. Let's revolutionize their success."
     },
     {
       "slideNumber": 2,
       "layout": "verdict",
       "title": "Idea Verdict",
       "headline": "Unmatched Market Validation & Confidence Score: 85/100",
-      "content": "- **Validation Score**:  85/100 - High demand validated through extensive market research and customer interviews. We are confident in our ability to capture a significant share of the Indian Kirana market.\n- **Market Verdict**: HIGH DEMAND - The Indian Kirana sector is ripe for disruption, with millions of small retailers struggling with inefficient inventory management practices. We have identified a clear and compelling opportunity to address this need.",
-      "speakerNote": "Our market validation score reflects our confidence in the potential of our solution. Let's discuss how we can unlock this massive opportunity together."
+      "content": "- **Validation Score**: 85/100 - High demand validated by extensive market research, user interviews, and competitor analysis.\n- **Market Verdict**: HIGH DEMAND -  The Indian Kirana sector is ripe for disruption with a massive addressable market. Our solution addresses critical pain points of inventory management and profitability.\n- **Brutal Honesty**: The current state of Kirana store inventory management is inefficient and prone to errors, leading to significant losses. We offer a unique solution that leverages AI to optimize inventory levels, reduce waste, and increase profits.",
+      "speakerNote": "We're confident in our market validation and the potential for rapid growth. Let's discuss how we can unlock this opportunity together."
     },
     {
       "slideNumber": 3,
       "layout": "market-size",
       "title": "Market Size",
-      "headline": "Untapped Market Potential: ₹45,000 Cr TAM in India's Kirana Sector",
-      "content": "- **Total Addressable Market (TAM)**:  ₹45,000 Cr - The Indian Kirana market is a vast and untapped opportunity. We are targeting the entire sector, with potential for significant growth.\n- **Serviceable Addressable Market (SAM)**: ₹5,000 Cr - Our initial focus will be on capturing 20% of this specific segment before expanding to broader markets.",
-      "speakerNote": "Our market size analysis demonstrates a massive opportunity. Let's discuss how we can unlock this potential."
+      "headline": "India's Kirana Market: A Thriving Opportunity Worth ₹45,000 Cr",
+      "content": "- **Total Addressable Market (TAM)**:  ₹45,000 Cr -  The Indian Kirana sector is a massive market with millions of stores. Our solution targets this entire segment.\n- **Serviceable Addressable Market (SAM)**:  ₹5,000 Cr - We focus on the most profitable and scalable segments within the Kirana industry.\n- **Serviceable Obtainable Market (SOM)**: ₹500 Cr -  We aim to capture 20%+ of this specific niche before expanding to broader markets.",
+      "speakerNote": "Our market size analysis highlights the significant potential for growth. Let's explore how we can capitalize on this opportunity."
     },
     {
       "slideNumber": 4,
       "layout": "opportunities",
       "title": "Opportunities",
-      "headline": "Revolutionizing Kirana Stores Through AI-Powered Solutions",
-      "content": "- **Opportunity A**:  Digitalization of inventory management - We are leveraging AI to automate inventory tracking and forecasting. This will reduce manual errors, optimize stock levels, and minimize waste.\n- **Opportunity B**:  Personalized recommendations - Our AI engine can analyze customer data to provide tailored product recommendations, increasing sales and customer satisfaction.\n- **Opportunity C**:  Automated order processing - We are integrating our platform with existing POS systems to automate order fulfillment, reducing operational costs and improving efficiency.",
-      "speakerNote": "Our solution offers a unique combination of opportunities. Let's explore how we can leverage these advantages for success."
+      "headline": "Unlocking Growth Potential: AI-Powered Solutions for Kirana Stores",
+      "content": "- **Opportunity A**: Digitalization and automation of inventory management processes. Our solution leverages AI to optimize stock levels, reduce waste, and improve profitability.\n- **Opportunity B**:  Integration with existing POS systems and online marketplaces. We offer seamless integration with popular platforms like Paytm, Amazon, and others.\n- **Opportunity C**:  Expansion into new markets and product lines. We aim to become the go-to solution for Kirana stores across India.",
+      "speakerNote": "Our AI-powered solutions empower Kirana stores to unlock their full potential. Let's explore how we can achieve this together."
     },
     {
       "slideNumber": 5,
       "layout": "niche",
       "title": "Suggested Niche",
-      "headline": "Targeting Tier-2 & Tier-3 Kirana Stores: The Untapped Potential",
-      "content": "- **Target Customer**:  Tier-2 and Tier-3 Kirana stores - These stores are underserved by existing solutions, lacking access to efficient inventory management tools. We will focus on their specific needs and pain points.\n- **Underserved Need**: Traditional kirana stores struggle with inefficient inventory management practices, leading to stockouts, excess inventory, and ultimately lost revenue.\n- **Launch Strategy**:  We will launch our solution in Tier-2 & Tier-3 cities first, capturing 20% market share before expanding to larger markets.",
-      "speakerNote": "Our focus on specific niche markets allows us to build density and achieve faster validation. Let's discuss how we can leverage this strategy for success."
+      "headline": "Targeting Tier-2 and Rural Kiranas: The Untapped Potential",
+      "content": "- **Target Customer**:  Tier-2 and rural Kirana stores with limited access to technology. We focus on empowering these stores with our AI-powered solutions.\n- **Underserved Need**: Traditional Kirana stores struggle with inventory management, leading to losses and inefficiencies. Our solution addresses this critical need.\n- **Launch Strategy**:  We will launch a pilot program targeting 100 Tier-2 and rural Kiranas in the first year to demonstrate our impact.",
+      "speakerNote": "Our focus on Tier-2 and rural Kiranas presents a unique opportunity for rapid growth. Let's explore how we can unlock this potential."
     },
     {
       "slideNumber": 6,
       "layout": "signals",
       "title": "Market Signals",
-      "headline": "Strong Demand Validation Through Social Listening & Search Trends",
-      "content": "- **Reddit Signal**:  75% Positive sentiment - Our social listening data shows a strong positive response to our solution. Customers are eager for solutions that can help them optimize their inventory and increase sales.\n- **Google Trends**:  Rising search volume (+20% YoY) - We're seeing significant growth in search queries related to Kirana store optimization, indicating high demand.",
-      "speakerNote": "Our market validation is based on real-world data. Let's discuss how we can leverage these signals for success."
+      "headline": "Validating Demand: Real-World User Feedback and Search Trends",
+      "content": "- **Reddit Signal**:  75% Positive sentiment - Users are actively discussing the challenges of inventory management in Kirana stores. Our solution is generating significant interest.\n- **Google Trends**:  +20% YoY search volume growth - We're seeing a clear increase in user interest and demand for AI-powered solutions for Kirana stores.\n- **Social Listening**:  Active customer engagement on social media platforms, with users expressing their desire for efficient inventory management tools.",
+      "speakerNote": "We have strong market signals validating our solution. Let's explore how we can capitalize on this opportunity."
     },
     {
       "slideNumber": 7,
       "layout": "risks",
       "title": "Key Risks & Mitigation Strategies",
-      "headline": "Addressing Challenges and Building Resilience",
-      "content": "- **Risk A**:  Slow user onboarding - We will implement a streamlined onboarding process to ensure a smooth transition for Kirana store owners. Our solution is designed to be easy to use, even for those with limited technical expertise.\n- **Risk B**:  High collection/logistics costs - We are exploring partnerships with logistics providers and integrating our platform with existing POS systems to minimize operational costs.\n- **Mitigation Strategy**: We will implement robust risk mitigation strategies to ensure the success of our solution.",
-      "speakerNote": "We are proactive in addressing potential risks. Let's discuss how we can mitigate these challenges for a successful launch."
+      "headline": "Addressing Potential Challenges and Building Resilience",
+      "content": "- **Risk A**:  Slow user onboarding. We'll implement a phased rollout strategy with comprehensive training materials and dedicated customer support.\n- **Risk B**:  High collection/logistics costs. We'll optimize our logistics network, partner with reliable third-party providers, and explore micro-delivery solutions for increased efficiency.\n- **Mitigation Strategy**:  We will address these risks proactively through a robust implementation plan and continuous improvement efforts.",
+      "speakerNote": "Our proactive risk management strategy ensures we can overcome any challenges and achieve our goals. Let's discuss how we can navigate potential hurdles together."
     },
     {
       "slideNumber": 8,
       "layout": "govt-schemes",
-      "title": "Govt Schemes & Funding",
-      "headline": "Leveraging Non-Dilutive Government Funding Opportunities",
-      "content": "- **DPIIT Recognition**:  Tax exemptions, IP/patent assistance, and fast-track registration benefits.\n- **Matched Schemes**:  Specific schemes matched, e.g., Startup India Seed Fund (SISFS) up to ₹50L or NIDHI-PRAYAS (₹10L).\n- **Incentive Strategy**: We will leverage government subsidies and incubation networks to extend our runway.",
-      "speakerNote": "We are committed to responsible growth. Let's explore how we can leverage these opportunities for success."
+      "title": "Government Schemes & Funding",
+      "headline": "Leveraging Non-Dilutive Funding to Accelerate Growth",
+      "content": "- **DPIIT Recognition**:  Tax exemptions and IP/patent assistance for startups. We'll leverage these benefits to accelerate our growth.\n- **Matched Schemes**:  Specific schemes like Startup India Seed Fund (SISFS) up to ₹50L or NIDHI-PRAYAS (₹10L). We will explore these opportunities to secure additional funding and maximize our runway.\n- **Incentive Strategy**:  We'll leverage government subsidies and incubation networks to extend our runway and accelerate growth.",
+      "speakerNote": "We're committed to responsible and sustainable growth. Let's discuss how we can leverage government support to achieve our goals."
     },
     {
       "slideNumber": 9,
       "layout": "action-plan",
-      "title": "Action Plan: From Validation to Growth",
-      "headline": "Building a Scalable Solution and Achieving Early Success",
-      "content": "- **Step 1: Customer Discovery**:  Target responses, customer interviews, and validating our niche persona.\n- **Step 2: MVP Development**: Building initial pilot product, setting up WhatsApp/simple workflows, and beta trial.\n- **Step 3: Pilot Launch & Scale**: Acquiring first 100 paid users, establishing unit economics, and preparing for Seed ask.",
-      "speakerNote": "Our action plan is clear and focused on achieving early validation. Let's discuss how we can execute this roadmap for success."
+      "title": "Action Plan: From Validation to Scale",
+      "headline": "A Roadmap for Rapid Growth and Market Domination",
+      "content": "- **Step 1: Customer Discovery**:  Pilot program targeting 100 Tier-2 and rural Kiranas. We'll conduct extensive user interviews and gather valuable feedback.\n- **Step 2: MVP Development**:  Develop a robust AI-powered inventory management solution for pilot users. We'll focus on core features and iterate based on user feedback.\n- **Step 3: Pilot Launch & Scale**:  Acquire first 100 paid users, establish unit economics, and prepare for Seed funding round.\n",
+      "speakerNote": "Our action plan is designed to maximize impact and achieve rapid growth. Let's explore how we can unlock this opportunity together."
     },
     {
       "slideNumber": 10,
       "layout": "contact",
       "title": "Contact / Next Steps",
-      "headline": "Join us in Revolutionizing Kirana Stores",
-      "content": "- **Contact Name**:  [Your Name] - Co-Founder & CEO\n- **Email Address**: [Your Email]\n- **Phone & Social**: [Your Phone Number] | linkedin.com/in/[Your LinkedIn Profile URL]",
-      "speakerNote": "Let's build the future of retail together."
+      "headline": "Join us in revolutionizing Kirana stores.",
+      "content": "- **Contact Name**:  [Your Name], Co-Founder & CEO\n- **Email Address**: hello@startup.com\n- **Phone & Social**: +91 99999 99999 | linkedin.com/in/[your name]\n",
+      "speakerNote": "Let's unlock the potential of Kirana stores and revolutionize their success."
     }
   ],
-  "investorFitNote": "Our team possesses the expertise and passion to execute this vision, and we are seeking strategic investors who share our commitment to revolutionizing Kirana stores in India."
+  "investorFitNote": "We are seeking strategic investors who share our vision for empowering Kirana stores through AI-powered solutions. We believe this investment will yield significant returns and contribute to a more efficient and prosperous Indian economy."
 }

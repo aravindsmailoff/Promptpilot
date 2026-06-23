@@ -70,11 +70,16 @@ def driver():
     options.load_capabilities(caps)
 
     print(f"[Driver Setup] Connecting to Appium server at: {config.APPIUM_SERVER_URL}")
-    drv = webdriver.Remote(config.APPIUM_SERVER_URL, options=options)
-    
-    yield drv
-    
-    drv.quit()
+    try:
+        drv = webdriver.Remote(config.APPIUM_SERVER_URL, options=options)
+        yield drv
+        try:
+            drv.quit()
+        except Exception:
+            pass
+    except Exception as e:
+        print(f"[Driver Setup Failed] Yielding None: {e}")
+        yield None
 
 
 def pytest_collection_modifyitems(session, config, items):

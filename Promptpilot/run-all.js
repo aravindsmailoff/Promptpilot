@@ -40,6 +40,29 @@ function startTunnel() {
   });
 }
 
+function runAdbReverse() {
+  const adbPaths = [
+    process.env.ADB_PATH,
+    path.join(process.env.ANDROID_HOME || '', 'platform-tools', isWindows ? 'adb.exe' : 'adb'),
+    path.join(process.env.ANDROID_SDK_ROOT || '', 'platform-tools', isWindows ? 'adb.exe' : 'adb'),
+    path.join(process.env.USERPROFILE || process.env.HOME || '', 'AppData', 'Local', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+    'adb'
+  ].filter(Boolean);
+
+  for (const adb of adbPaths) {
+    try {
+      const execSync = require('child_process').execSync;
+      execSync(`"${adb}" reverse tcp:9002 tcp:9002`, { stdio: 'ignore' });
+      console.log(`\x1b[32m[ADB] Successfully ran: adb reverse tcp:9002 tcp:9002 using ${adb}\x1b[0m`);
+      return true;
+    } catch (e) {
+      // ignore and try next
+    }
+  }
+  console.log('\x1b[33m[ADB] Could not run adb reverse automatically. Please ensure adb is on PATH or emulator is running.\x1b[0m');
+  return false;
+}
+
 function updateConfigFiles(newUrl) {
   const newDomain = newUrl.replace('https://', '').replace('http://', '');
   
@@ -70,15 +93,25 @@ function updateConfigFiles(newUrl) {
   if (fs.existsSync(capacitorPath)) {
     try {
       let content = fs.readFileSync(capacitorPath, 'utf8');
+      let modified = false;
+
+      // 1. Replace the server URL: url: '...'
+      const regexUrl = /url:\s*'[^']+'/g;
+      if (regexUrl.test(content)) {
+        content = content.replace(regexUrl, `url: '${newUrl}'`);
+        modified = true;
+      }
       
-      // Replace references to trycloudflare and ngrok subdomains in capacitor.config.ts
+      // 2. Replace references to trycloudflare and ngrok subdomains in capacitor.config.ts
       const regexSubdomain = /[a-zA-Z0-9-]+\.(trycloudflare\.com|ngrok-free\.dev|ngrok-free\.app)/g;
       if (regexSubdomain.test(content)) {
         content = content.replace(regexSubdomain, newDomain);
+        modified = true;
+      }
+
+      if (modified) {
         fs.writeFileSync(capacitorPath, content, 'utf8');
-        console.log(`\x1b[32m[Config] Successfully updated capacitor.config.ts with new Tunnel domain (${newDomain}).\x1b[0m`);
-      } else {
-        console.log(`\x1b[33m[Config] No matching tunnel domains found in capacitor.config.ts to replace.\x1b[0m`);
+        console.log(`\x1b[32m[Config] Successfully updated capacitor.config.ts with URL: ${newUrl}\x1b[0m`);
       }
     } catch (err) {
       console.error(`\x1b[31m[Config - ERR] Failed to update capacitor.config.ts:\x1b[0m`, err.message);
@@ -178,6 +211,9 @@ async function main() {
 
   process.on('SIGINT', cleanExit);
   process.on('SIGTERM', cleanExit);
+
+  // Setup ADB reverse proxy for the Android Emulator
+  runAdbReverse();
 
   // Start Ngrok Tunnel if ENABLE_TUNNEL is true, otherwise run purely on localhost
   if (process.env.ENABLE_TUNNEL === 'true') {

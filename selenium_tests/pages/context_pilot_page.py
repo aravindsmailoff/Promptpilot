@@ -10,19 +10,19 @@ class ContextPilotPage(BasePage):
     SERVER_STATUS_BADGE = (By.XPATH, "//*[contains(text(), 'context_server.py online') or contains(text(), 'context_server.py offline')]")
     
     # Left Workspace Tabs
-    TAB_BOTS_BTN = (By.XPATH, "//button[contains(., 'Startup Chatbots')]")
-    TAB_EXPLORER_BTN = (By.XPATH, "//button[contains(., 'Context Explorer')]")
+    TAB_BOTS_BTN = (By.ID, "crm-bots-tab")
+    TAB_EXPLORER_BTN = (By.ID, "crm-explorer-tab")
 
     # Chatbot Workspace
-    CHATBOT_INPUT = (By.XPATH, "//input[contains(@placeholder, 'Message ')]")
-    CHATBOT_SEND_BTN = (By.XPATH, "//form[contains(@class, 'flex')]//button[@type='submit']")
+    CHATBOT_INPUT = (By.ID, "bot-chat-input")
+    CHATBOT_SEND_BTN = (By.ID, "bot-chat-send-btn")
     CHAT_THINKING_INDICATOR = (By.XPATH, "//*[contains(text(), 'thinking...')]")
     CHAT_RESPONSE_BUBBLE = (By.XPATH, "//div[contains(@class, 'bg-white/5') and contains(@class, 'text-slate-200')]")
 
     # Context Explorer - Quick Add Memory
-    PASTE_APP_SELECT = (By.XPATH, "//button[contains(., 'Manual note') or contains(., 'Select type')]")
-    QUICK_ADD_TEXTAREA = (By.XPATH, "//textarea[contains(@placeholder, 'Paste any text here to index it')]")
-    INDEX_MEMORY_BTN = (By.XPATH, "//button[contains(., 'Index This Memory')]")
+    PASTE_APP_SELECT = (By.ID, "paste-app-select-trigger")
+    QUICK_ADD_TEXTAREA = (By.ID, "paste-memory-textarea")
+    INDEX_MEMORY_BTN = (By.ID, "index-memory-btn")
     INDEX_LOADING_INDICATOR = (By.XPATH, "//*[contains(text(), 'Indexing')]")
 
     # Context Explorer - Search

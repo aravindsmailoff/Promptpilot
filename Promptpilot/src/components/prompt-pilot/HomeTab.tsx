@@ -650,6 +650,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       <div className="flex justify-center mt-4">
         <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md shadow-lg shadow-black/20">
           <button
+            id="rd-mode-btn"
             type="button"
             onClick={() => setMode('rd')}
             className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'rd' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
@@ -658,6 +659,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
             R&D Mode
           </button>
           <button
+            id="cofounder-mode-btn"
             type="button"
             onClick={() => setMode('startup')}
             className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'startup' ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
@@ -740,6 +742,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               <input type="file" accept=".txt,.md,.json,.js,.ts,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
               
               <Button 
+                id="image-upload-btn"
                 variant="ghost" 
                 size="icon" 
                 className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
@@ -748,6 +751,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 <ImagePlus className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
               </Button>
               <Button 
+                id="doc-upload-btn"
                 variant="ghost" 
                 size="icon" 
                 className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
@@ -769,6 +773,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
             <div className="relative flex bg-black/40 p-1.5 rounded-2xl border border-white/5 shadow-inner w-full sm:w-auto h-14 items-center">
               <button
+                id="cloud-ai-btn"
                 type="button"
                 onClick={() => updateSetting('useOllama', false)}
                 className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!settings.useOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
@@ -776,6 +781,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 Cloud AI
               </button>
               <button
+                id="local-llm-btn"
                 type="button"
                 onClick={() => updateSetting('useOllama', true)}
                 className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${settings.useOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
@@ -790,6 +796,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
             </div>
 
             <Button 
+              id="execute-mission-btn"
               size="lg" 
               onClick={handleRoute} 
               disabled={loading || !task.trim()}
@@ -852,6 +859,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               <div className="relative group/prompt">
                 <div className="absolute -top-6 -right-2 z-20">
                   <Button 
+                    id="copy-prompt-btn"
                     size="icon" 
                     variant="secondary" 
                     onClick={copyToClipboard} 
@@ -867,12 +875,13 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               </div>
  
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(59,130,246,0.4)] transition-all" onClick={openAI}>
+                <Button id="manual-deploy-btn" className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(59,130,246,0.4)] transition-all" onClick={openAI}>
                   Manual Deploy
                   <ExternalLink className="ml-2 h-5 w-5 group-hover:scale-110 transition-transform" />
                 </Button>
                 
                 <Button 
+                  id="auto-execute-btn"
                   className="h-14 text-sm md:text-base font-black uppercase tracking-widest bg-accent hover:bg-accent/90 text-accent-foreground rounded-2xl group shadow-[0_10px_20px_-5px_rgba(255,165,0,0.4)] transition-all relative overflow-hidden" 
                   onClick={() => {
                     const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
@@ -888,8 +897,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                     <><Zap className="mr-2 h-5 w-5 group-hover:scale-125 transition-transform" /> Auto-Execute</>
                   )}
                 </Button>
-
+ 
                 <Button 
+                  id="refine-parameters-btn"
                   variant="outline" 
                   className="md:col-span-2 h-14 text-sm md:text-base font-bold border-white/10 bg-white/5 text-white hover:bg-white/10 rounded-2xl px-6 transition-all shadow-md" 
                   onClick={() => setRefining(!refining)}
@@ -1059,6 +1069,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                       <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-4 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
                         <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
                         <Textarea
+                          id="chat-refine-input"
                           placeholder="Type here to ask AI for the next task or refinement..."
                           value={refineInput}
                           onChange={(e) => setRefineInput(e.target.value)}
@@ -1070,6 +1081,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                             Ask AI for the next task or instruction
                           </span>
                           <Button
+                            id="chat-refine-execute-btn"
                             onClick={() => handleRefineWithInput(false)}
                             disabled={!refineInput.trim() || loading}
                             className="h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-wider transition-all shadow-md w-full sm:w-auto flex justify-center items-center"

@@ -872,9 +872,9 @@ export function ContextPilotTab() {
           <Brain className="h-3 w-3 animate-pulse" />
           Startup CRM & Memory Center
         </div>
-        <h2 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-none">
+        <h1 className="text-5xl md:text-7xl font-black tracking-tighter text-white leading-none">
           Memory <span className="text-primary text-glow">CRM</span>
-        </h2>
+        </h1>
         <p className="text-slate-400 text-base max-w-xl mx-auto">
           Train custom local agents on your Zoom meetings, client chats, and emails. Powered by Gemma.
         </p>
@@ -906,6 +906,7 @@ export function ContextPilotTab() {
           {/* Tab Switcher */}
           <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl">
             <button
+              id="crm-bots-tab"
               onClick={() => setActiveTabLeft('bots')}
               className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${
                 activeTabLeft === 'bots'
@@ -916,6 +917,7 @@ export function ContextPilotTab() {
               <Sparkles className="h-4 w-4" /> Startup Chatbots
             </button>
             <button
+              id="crm-explorer-tab"
               onClick={() => setActiveTabLeft('explorer')}
               className={`flex-1 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 ${
                 activeTabLeft === 'explorer'
@@ -1232,6 +1234,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                 {/* Send form */}
                 <form onSubmit={handleSendChatMessage} className="p-3 border-t border-white/5 bg-white/[0.01] flex gap-2 flex-shrink-0">
                   <input
+                    id="bot-chat-input"
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
@@ -1240,6 +1243,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-primary/50 disabled:opacity-50"
                   />
                   <Button
+                    id="bot-chat-send-btn"
                     type="submit"
                     disabled={chatLoading || !chatInput.trim()}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl px-4 font-bold h-9 flex items-center justify-center flex-shrink-0"
@@ -1275,6 +1279,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                   {/* Tab Selector */}
                   <div className="flex gap-2 p-1 bg-white/5 border border-white/10 rounded-2xl">
                     <button
+                      id="crm-explorer-all-btn"
                       onClick={() => setActiveTab('all')}
                       className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all ${
                         activeTab === 'all'
@@ -1285,6 +1290,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                       🌐 All Memories
                     </button>
                     <button
+                      id="crm-explorer-gmail-btn"
                       onClick={() => setActiveTab('Gmail')}
                       className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                         activeTab === 'Gmail'
@@ -1295,6 +1301,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                       <Mail className="h-3.5 w-3.5" /> Gmail Only
                     </button>
                     <button
+                      id="crm-explorer-whatsapp-btn"
                       onClick={() => setActiveTab('WhatsApp')}
                       className={`flex-1 py-2 text-xs font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-1.5 ${
                         activeTab === 'WhatsApp'
@@ -1309,12 +1316,14 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                   {/* Gemma toggle */}
                   <div className="flex items-center gap-3">
                     <button
+                      id="crm-explorer-fast-btn"
                       onClick={() => setUseGemma(false)}
                       className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all ${!useGemma ? 'bg-primary text-primary-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
                     >
                       Fast (Hybrid)
                     </button>
                     <button
+                      id="crm-explorer-gemma-btn"
                       onClick={() => setUseGemma(true)}
                       className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${useGemma ? 'bg-accent text-accent-foreground shadow-lg' : 'text-slate-500 hover:text-white'}`}
                     >
@@ -1541,7 +1550,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                 </CardHeader>
                 <CardContent className="px-6 pb-6 space-y-3">
                   <Select value={pasteApp} onValueChange={setPasteApp}>
-                    <SelectTrigger className="w-full bg-[#1e293b] border-white/10 text-white rounded-xl h-11 focus:ring-primary/50">
+                    <SelectTrigger id="paste-app-select-trigger" className="w-full bg-[#1e293b] border-white/10 text-white rounded-xl h-11 focus:ring-primary/50">
                       <SelectValue placeholder="Select type..." />
                     </SelectTrigger>
                     <SelectContent className="bg-[#1e293b] border-white/10 text-white">
@@ -1553,6 +1562,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                     </SelectContent>
                   </Select>
                   <Textarea
+                    id="paste-memory-textarea"
                     value={pasteText}
                     onChange={e => setPasteText(e.target.value)}
                     placeholder="Paste any text here to index it — a message, note, article, meeting summary…"
@@ -1560,6 +1570,7 @@ Rule: If a user asks about rates/availability, recommend the Standard Package or
                     style={{ color: 'white', WebkitTextFillColor: 'white' }}
                   />
                   <Button
+                    id="index-memory-btn"
                     onClick={handlePasteIngest}
                     disabled={ingesting || !pasteText.trim()}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold uppercase tracking-wider h-11"

@@ -137,6 +137,19 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+      const allowedHosts = ['localhost:9002', '10.0.2.2:9002', '127.0.0.1:9002'];
+      try {
+        const parsedUrl = new URL(url);
+        if (allowedHosts.includes(parsedUrl.host)) {
+          return url;
+        }
+      } catch (e) {}
+      return baseUrl;
+    },
   },
   pages: {
     signIn: '/',

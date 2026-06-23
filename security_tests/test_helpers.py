@@ -14,6 +14,9 @@ from typing import Callable, List, Any, Optional
 
 def _get_reporter():
     """Return the session-scoped SecurityReporter from conftest (single source of truth)."""
+    import sys
+    if hasattr(sys, "_security_reporter"):
+        return sys._security_reporter
     import conftest as _cf
     return _cf._reporter
 
@@ -119,6 +122,9 @@ def run_test(
 
 def _mark_logged(test_id: str):
     """Notify conftest that this test_id has been logged by run_test()."""
+    import sys
+    if hasattr(sys, "_logged_ids"):
+        sys._logged_ids.add(test_id)
     try:
         import conftest as _cf
         _cf._logged_ids.add(test_id)

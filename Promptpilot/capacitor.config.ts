@@ -17,8 +17,19 @@ const config: CapacitorConfig = {
     }
   },
   server: {
-    url: 'https://promptpilot-jet.vercel.app',
-    cleartext: true
+    url: 'http://localhost:9002',
+    cleartext: true,
+    allowNavigation: [
+      'localhost:9002',
+      'localhost:*',
+      '127.0.0.1:9002',
+      '127.0.0.1:*',
+      '10.0.2.2:9002',
+      '10.0.2.2:*',
+      '*.google.com',
+      '*.googleusercontent.com',
+      'accounts.google.com'
+    ]
   }
 };
 

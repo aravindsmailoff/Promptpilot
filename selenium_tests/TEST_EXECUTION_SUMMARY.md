@@ -6,8 +6,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Total Tests | 119 |
-| Passed | 119 |
+| Total Tests | 500 |
+| Passed | 500 |
 | Failed | 0 |
 | Errors | 0 |
 | Pass Rate | 100.0% |
@@ -16,12 +16,7 @@
 
 | Category | Total | Passed |
 |----------|-------|--------|
-| UT | 26 | 26 |
-| FT | 26 | 26 |
-| UI | 26 | 26 |
-| VT | 16 | 16 |
-| DS | 16 | 16 |
-| TC | 9 | 9 |
+| TC | 500 | 500 |
 
 ## Report Artifacts
 

@@ -75,9 +75,9 @@ export function DirectoryTab() {
   return (
     <div className="max-w-6xl mx-auto space-y-12 animate-in fade-in duration-700 pb-20">
       <div className="text-center space-y-4">
-        <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter text-glow">
+        <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter text-glow">
           The Global <span className="text-primary italic">Fleet</span>
-        </h2>
+        </h1>
         <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
           We route your mission to the world's most advanced intelligence platforms in real-time.
         </p>
@@ -134,6 +134,7 @@ export function DirectoryTab() {
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button 
+                id="submit-model-btn"
                 size="lg" 
                 className="bg-white text-black hover:bg-white/90 rounded-2xl px-12 py-8 text-lg font-black uppercase tracking-tighter transition-all hover:scale-105 active:scale-95 shadow-xl shadow-white/5"
               >
@@ -183,6 +184,7 @@ export function DirectoryTab() {
                 </div>
                 <DialogFooter className="sm:justify-end gap-3 pt-4">
                   <Button 
+                    id="abort-model-btn"
                     type="button" 
                     variant="ghost" 
                     onClick={() => setIsDialogOpen(false)}
@@ -191,6 +193,7 @@ export function DirectoryTab() {
                     Abort
                   </Button>
                   <Button 
+                    id="confirm-model-btn"
                     type="submit" 
                     disabled={isSubmitting}
                     className="bg-primary text-primary-foreground font-black uppercase tracking-widest rounded-xl px-8"

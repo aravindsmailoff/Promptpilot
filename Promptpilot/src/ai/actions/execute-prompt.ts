@@ -114,20 +114,15 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
   return "https://vjs.zencdn.net/v/oceans.mp4";
 }
 
-const RESEARCH_SYSTEM_PROMPT = `You are PromptPilot Startup R&D AI — a high-powered startup ideation and market research strategist.
-
-Your role: Help the user brainstorm, generate, and refine startup ideas, business models, and validation plans when they share their thoughts, concepts, or objectives.
+const RESEARCH_SYSTEM_PROMPT = `You are PromptPilot Startup R&D AI — a brutal, honest, and direct startup strategist.
+Your primary role is to help the user generate and improvise startup ideas with zero fluff, zero bluff, and absolute clarity.
 
 OUTPUT RULES (follow strictly):
-1. Use ## headings and ### sub-headings to structure every response.
-2. Use **bold** for key business terms, strategies, and important operational metrics.
-3. Use bullet points for lists, and numbered lists for execution steps or validation phases.
-4. Do NOT output, render, or hallucinate any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets under any circumstances. If the user asks for a guide, business concepts, or strategies, provide purely clean, clear text, tables, and structured sections without any image brackets or placeholders.
-5. Provide actionable startup idea pathways, target niches, and competitive dynamics. Cite source URLs inline when web data is provided.
-6. If no live data was fetched, clearly state "Based on training knowledge as of [your cutoff]:"
-7. Provide a "## Actionable Startup Ideas & Key Takeaways" section with 3–5 high-impact execution points at the end.
-
-You are NOT an academic research paper helper. You deliver practical, startup-focused R&D, business validation, and clear ideation reports.`;
+1. Focus entirely on startup ideation, brutal reality, market risks, and improvising the concept. Tell the hard truths. No academic fluff or bluff.
+2. The output MUST be clean, clear, and easy to read. Do NOT use noisy formatting symbols like excessive stars, hashes, or complex nested bullet symbols (e.g. avoid things like '*$', '##', excessive bolding, or weird list structures). Keep headings simple and paragraphs concise.
+3. Do NOT output, render, or hallucinate any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets under any circumstances.
+4. Provide actionable startup idea pathways, target niches, and competitive dynamics. Cite source URLs inline when web data is provided.
+5. Provide a "Brutal Startup Analysis & Next Steps" section with 3–5 direct, no-bluff takeaways at the end.`;
 
 export async function executePromptViaApi(
   prompt: string,
@@ -147,39 +142,13 @@ export async function executePromptViaApi(
   if (isVideo) return executeVideoGeneration(prompt);
 
   // ── TEXT GENERATION path (OLLAMA / LOCAL ONLY) ──────────────────────────────
-  if (!settings?.useOllama) {
-    const systemMessage = "You are an expert startup co-founder and strategist. Neatly structure your output using clean headings, sections, bold text for key terms, and standard lists. Provide a highly organized, professional, and clean document. Do NOT output or hallucinate any image markdown (e.g., ![image](...)) or image placeholders. All responses must be clean, clear text and tables only.";
-    let lastError: any = null;
-
-    for (const model of ROUTING_MODELS) {
-      try {
-        console.log(`[HuggingFace Cloud Execution] Sending prompt using model: ${model}`);
-        const response = await hfClient.chat.completions.create({
-          model: model,
-          messages: [
-            { role: "system", content: systemMessage },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.7
-        });
-
-        let text = response.choices[0]?.message?.content;
-        if (!text) {
-          throw new Error(`Hugging Face model ${model} returned an empty response.`);
-        }
-
-        // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
-        text = text.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
-
-        return text;
-      } catch (error: any) {
-        console.error(`[HuggingFace Execution Error] Model ${model} failed:`, error);
-        lastError = error;
-      }
-    }
-
-    throw new Error(`Cloud Execution Failed: ${lastError?.message || lastError}`);
-  }
+  // Force local Ollama engine with gemma2:2b as required
+  const forcedSettings = {
+    ...settings,
+    useOllama: true,
+    ollamaModel: 'gemma2:2b',
+    localEngine: 'ollama' as 'ollama' | 'python'
+  };
 
   // Fetch live web data before calling local synthesis
   let enrichedPrompt = prompt;
@@ -206,11 +175,11 @@ export async function executePromptViaApi(
   // ── SYNTHESIS PHASE ─────────────────────────────
   // Send enriched prompt to Ollama / local engine for synthesis
   let text = '';
-  const localEngine = settings?.localEngine || 'ollama';
+  const localEngine = forcedSettings.localEngine;
 
   try {
     if (localEngine === 'python') {
-      const activeUrl = settings?.pythonServerUrl || 'http://127.0.0.1:8000';
+      const activeUrl = forcedSettings.pythonServerUrl || 'http://127.0.0.1:8000';
       console.log(`[PromptPilot Research AI] Synthesizing via Python Server: ${activeUrl}`);
       text = await executePythonChat(
         activeUrl,
@@ -221,8 +190,8 @@ export async function executePromptViaApi(
         0.4
       );
     } else {
-      const activeModel = settings?.ollamaModel || 'gemma2:2b';
-      const activeUrl = settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
+      const activeModel = forcedSettings.ollamaModel;
+      const activeUrl = forcedSettings.ollamaBaseUrl || 'http://127.0.0.1:11434';
       console.log(`[PromptPilot Research AI] Synthesizing via Ollama model: ${activeModel}`);
 
       text = await executeOllamaChat(

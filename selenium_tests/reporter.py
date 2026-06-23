@@ -91,8 +91,32 @@ class TestReporter:
         meta_cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[2].height = 20
         
+        # Summary Row in A3:J3
+        ws.merge_cells("A3:J3")
+        summary_cell = ws["A3"]
+        passed_count = sum(1 for r in self.results if r["status"] == "PASS")
+        failed_count = sum(1 for r in self.results if r["status"] in ("FAIL", "FAILED"))
+        error_count = sum(1 for r in self.results if r["status"] not in ("PASS", "FAIL", "FAILED"))
+        total_count = len(self.results)
+        pass_rate = (passed_count / total_count * 100) if total_count > 0 else 0
+        
+        summary_cell.value = f"TOTAL TESTS: {total_count}  |  PASSED: {passed_count}  |  FAILED: {failed_count}  |  ERRORS: {error_count}  |  PASS RATE: {pass_rate:.1f}%"
+        
+        if pass_rate == 100:
+            summary_cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=11, bold=True, color="006100")
+        elif pass_rate >= 90:
+            summary_cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=11, bold=True, color="9C6500")
+        else:
+            summary_cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=11, bold=True, color="9C0006")
+            
+        summary_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[3].height = 25
+        
         # Empty row
-        ws.row_dimensions[3].height = 10
+        ws.row_dimensions[4].height = 10
         
         # Headers
         headers = [
@@ -101,7 +125,7 @@ class TestReporter:
             "Duration (s)", "Timestamp", "Screenshot Link"
         ]
         
-        start_row = 4
+        start_row = 5
         for col_idx, header in enumerate(headers, 1):
             cell = ws.cell(row=start_row, column=col_idx)
             cell.value = header
@@ -168,6 +192,9 @@ class TestReporter:
                     
             ws.row_dimensions[current_row].height = 60 # Set fixed comfortable height for wraps
             current_row += 1
+            
+        # Enable Autofilter dropdowns on header row (row 5)
+        ws.auto_filter.ref = f"A5:J{current_row - 1}"
             
         # Auto-fit columns with safety margins
         for col in ws.columns:

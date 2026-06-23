@@ -56,7 +56,10 @@ def driver():
 
     service = Service(ChromeDriverManager().install())
     drv = webdriver.Chrome(service=service, options=chrome_options)
-    drv.maximize_window()
+    if headless_env == "true":
+        drv.set_window_size(1920, 1080)
+    else:
+        drv.maximize_window()
 
     yield drv
 

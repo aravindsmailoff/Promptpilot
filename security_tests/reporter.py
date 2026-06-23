@@ -81,8 +81,31 @@ class SecurityReporter:
         meta_cell.alignment = Alignment(horizontal="center", vertical="center")
         ws.row_dimensions[2].height = 20
         
+        # Summary Row in A3:J3
+        ws.merge_cells("A3:J3")
+        summary_cell = ws["A3"]
+        passed_count = sum(1 for r in self.results if r["status"] in ("SECURE", "PASS"))
+        failed_count = sum(1 for r in self.results if r["status"] in ("VULNERABLE", "FAIL", "FAILED"))
+        total_count = len(self.results)
+        pass_rate = (passed_count / total_count * 100) if total_count > 0 else 0
+        
+        summary_cell.value = f"TOTAL CHECKS: {total_count}  |  SECURE / PASS: {passed_count}  |  VULNERABLE / FAIL: {failed_count}  |  DEFENSE RATE: {pass_rate:.1f}%"
+        
+        if pass_rate == 100:
+            summary_cell.fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=10, bold=True, color="006100")
+        elif pass_rate >= 90:
+            summary_cell.fill = PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=10, bold=True, color="9C6500")
+        else:
+            summary_cell.fill = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+            summary_cell.font = Font(name=font_family, size=10, bold=True, color="9C0006")
+            
+        summary_cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[3].height = 25
+        
         # Spacer
-        ws.row_dimensions[3].height = 10
+        ws.row_dimensions[4].height = 10
         
         # Table Headers
         headers = [
@@ -91,16 +114,17 @@ class SecurityReporter:
             "Status", "Remediation & Security Control", "Duration (s)"
         ]
         
+        start_row = 5
         for col_idx, h in enumerate(headers, 1):
-            cell = ws.cell(row=4, column=col_idx)
+            cell = ws.cell(row=start_row, column=col_idx)
             cell.value = h
             cell.font = header_font
             cell.fill = header_fill
             cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = thin_border
-        ws.row_dimensions[4].height = 25
+        ws.row_dimensions[start_row].height = 25
         
-        current_row = 5
+        current_row = 6
         if not self.results:
             ws.cell(row=current_row, column=1, value="WARNING").font = bold_data_font
             ws.merge_cells(start_row=current_row, start_column=2, end_row=current_row, end_column=10)
@@ -152,6 +176,9 @@ class SecurityReporter:
                     
             ws.row_dimensions[current_row].height = 55
             current_row += 1
+            
+        # Enable Autofilter dropdowns on header row (row 5)
+        ws.auto_filter.ref = f"A5:J{current_row - 1}"
             
         # Fit columns to text width
         for col in ws.columns:

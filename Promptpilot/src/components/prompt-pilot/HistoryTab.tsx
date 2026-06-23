@@ -145,10 +145,10 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-700 pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-4">
-          <h2 className="text-5xl font-black tracking-tighter text-white font-headline flex items-center gap-3">
+          <h1 className="text-5xl font-black tracking-tighter text-white font-headline flex items-center gap-3">
             <History className="h-10 w-10 text-primary" />
             Mission Log
-          </h2>
+          </h1>
           <p className="text-xl text-muted-foreground font-medium max-w-xl">
             Review previous prompts, model selections, and response outputs saved to PostgreSQL.
           </p>
@@ -158,6 +158,7 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
           <div className="relative w-full md:w-80 group">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-white/30 group-focus-within:text-primary transition-colors" />
             <input 
+              id="history-search-input"
               placeholder="Search history..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -222,6 +223,7 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
 
                     <div className="flex items-center gap-2">
                       <Button 
+                        id={`relaunch-btn-${item.id}`}
                         size="icon" 
                         variant="secondary" 
                         onClick={() => onRelaunch(item.taskDescription)}
@@ -231,6 +233,7 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
                         <Play className="h-5 w-5 fill-current" />
                       </Button>
                       <Button 
+                        id={`delete-btn-${item.id}`}
                         size="icon" 
                         variant="ghost" 
                         onClick={() => handleDelete(item.id)}
@@ -261,6 +264,7 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
                         Optimized Prompt
                       </div>
                       <Button
+                        id={`copy-prompt-btn-${item.id}`}
                         size="sm"
                         variant="ghost"
                         onClick={() => copyPrompt(item.id, item.optimizedPrompt)}
@@ -281,6 +285,7 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
                   {item.executionOutput && (
                     <div className="space-y-3 border-t border-white/5 pt-6">
                       <Button
+                        id={`toggle-output-btn-${item.id}`}
                         variant="ghost"
                         onClick={() => toggleExpand(item.id)}
                         className="w-full flex justify-between items-center h-10 px-0 hover:bg-transparent text-white/60 hover:text-white"
