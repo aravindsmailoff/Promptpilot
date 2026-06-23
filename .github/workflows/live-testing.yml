@@ -83,14 +83,14 @@ jobs:
       - name: Run Selenium E2E Test Suite
         run: |
           cd selenium_tests
-          pytest -v --tb=short
+          pytest tests/ -v --tb=short
         env:
           PYTEST_TIMEOUT: "60"
 
       - name: Run Security & Vulnerability Test Suite
         run: |
           cd security_tests
-          pytest -v --tb=short
+          pytest tests/ -v --tb=short
         env:
           PYTEST_TIMEOUT: "60"
 
@@ -122,7 +122,7 @@ jobs:
             npx appium --log appium.log &
             sleep 8
             cd appium_tests
-            pytest -v --tb=short
+            pytest tests/ -v --tb=short
         env:
           ADB_PATH: /usr/local/lib/android/sdk/platform-tools/adb
           PYTEST_TIMEOUT: "60"
