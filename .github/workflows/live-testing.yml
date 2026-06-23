@@ -94,6 +94,13 @@ jobs:
         env:
           PYTEST_TIMEOUT: "60"
 
+      - name: Run Performance & Load Test Suite
+        run: |
+          cd selenium_tests
+          python load_tester.py
+        env:
+          PYTEST_TIMEOUT: "60"
+
       - name: Install Appium and UIAutomator2 Driver
         run: |
           npm install appium
@@ -133,3 +140,4 @@ jobs:
             security_tests/VULNERABILITY_TEST_SUMMARY.md
             appium_tests/TEST_EXECUTION_SUMMARY.md
             appium_tests/test_automation_report.xlsx
+            PERFORMANCE_TEST_SUMMARY.md
