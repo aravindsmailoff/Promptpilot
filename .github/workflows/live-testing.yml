@@ -101,30 +101,11 @@ jobs:
         env:
           PYTEST_TIMEOUT: "60"
 
-      - name: Install Appium and UIAutomator2 Driver
-        run: |
-          npm install appium
-          npx appium driver install uiautomator2
-
       - name: Run Appium Mobile E2E Test Suite
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: default
-          arch: x86_64
-          force-avd-creation: true
-          emulator-options: -no-snapshot-load -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          script: |
-            adb wait-for-device
-            adb reverse tcp:9002 tcp:9002
-            adb reverse tcp:8001 tcp:8001
-            npx appium --log appium.log &
-            sleep 8
-            cd appium_tests
-            pytest tests/ -v --tb=short
+        run: |
+          cd appium_tests
+          pytest tests/ -v --tb=short
         env:
-          ADB_PATH: /usr/local/lib/android/sdk/platform-tools/adb
           PYTEST_TIMEOUT: "60"
 
       - name: Upload Test Reports
