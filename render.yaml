@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: promptpilot-backend
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: OLLAMA_MODEL
+        value: qwen3.5:2b
+      - key: DATABASE_URL
+        value: postgresql://postgres:HQvbhiEglDeCrKmLBwSrlJyrGAdMDngZ@kodama.proxy.rlwy.net:55746/railway?sslmode=require
+      - key: NEXTAUTH_SECRET
+        value: 3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg

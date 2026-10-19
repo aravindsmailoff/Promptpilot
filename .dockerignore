@@ -1,0 +1,16 @@
+.git
+.github
+.gradle
+.idea
+build
+scratch
+*.apk
+cloudflared.exe
+node_modules
+Promptpilot/node_modules
+Promptpilot/.next
+Promptpilot/android/.gradle
+Promptpilot/android/app/build
+appium_tests
+selenium_tests
+security_tests
