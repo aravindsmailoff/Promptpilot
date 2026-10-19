@@ -14,9 +14,9 @@ if promptpilot_env.exists():
 if promptpilot_env_local.exists():
     load_dotenv(dotenv_path=promptpilot_env_local)
 
-# Security Targets
+# Security Targets — uses Vercel service binding PROMPTPILOT_URL if available
 NEXTAUTH_SECRET = os.getenv("NEXTAUTH_SECRET", "3b82f6fitepSBEAwqefdLclsnmMXfpIryxAnsNjg")
-BASE_URL = os.getenv("NEXTAUTH_URL", "http://localhost:9002")
+BASE_URL = os.getenv("PROMPTPILOT_URL") or os.getenv("NEXTAUTH_URL", "http://localhost:9002")
 CONTEXT_SERVER_URL = os.getenv("CONTEXT_SERVER_URL", "http://127.0.0.1:8001")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 

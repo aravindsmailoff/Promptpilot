@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
+  const whatsappUrl = process.env.WHATSAPP_SERVICE_URL || 'http://127.0.0.1:8002';
   try {
-    const res = await fetch('http://127.0.0.1:8002/chats', {
+    const res = await fetch(new URL('/chats', whatsappUrl).toString(), {
       signal: AbortSignal.timeout(5000),
     });
 

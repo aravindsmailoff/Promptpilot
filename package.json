@@ -1,0 +1,13 @@
+{
+  "name": "promptpilot-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix Promptpilot run dev",
+    "dev:next": "npm --prefix Promptpilot run dev:next",
+    "build": "npm --prefix Promptpilot run build",
+    "start": "npm --prefix Promptpilot run start",
+    "lint": "npm --prefix Promptpilot run lint",
+    "typecheck": "npm --prefix Promptpilot run typecheck"
+  }
+}

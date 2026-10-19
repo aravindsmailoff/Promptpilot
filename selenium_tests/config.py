@@ -18,9 +18,8 @@ if promptpilot_env_local.exists():
 if not promptpilot_env.exists() and not promptpilot_env_local.exists():
     load_dotenv(dotenv_path=BASE_DIR / ".env")
 
-# App URL Configuration
-# If the NEXTAUTH_URL is a localtunnel URL, use localhost:9002 for local Selenium tests
-base_url_env = os.getenv("NEXTAUTH_URL", "http://localhost:9002")
+# App URL Configuration — uses Vercel service binding PROMPTPILOT_URL if available
+base_url_env = os.getenv("PROMPTPILOT_URL") or os.getenv("NEXTAUTH_URL", "http://localhost:9002")
 BASE_URL = base_url_env
 
 # Authorization Headers for FastAPI backend (port 8001)

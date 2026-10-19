@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/db';
+import { rtdb } from '@/lib/firebase';
+import { ref, get, set } from 'firebase/database';
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -11,13 +12,14 @@ export async function POST(req: NextRequest) {
 
   const userId = (session.user as any).id;
 
-  // 1. Get the Google Account for the user
-  const account = await prisma.account.findFirst({
-    where: {
-      userId: userId,
-      provider: 'google',
-    },
-  });
+  // 1. Get the Google Account from Firebase Realtime Database
+  let account: any = null;
+  try {
+    const snap = await get(ref(rtdb, `accounts/${userId}`));
+    if (snap.exists()) {
+      account = snap.val();
+    }
+  } catch (e) {}
 
   if (!account || !account.access_token) {
     return NextResponse.json({ error: 'Google account not connected or missing tokens' }, { status: 400 });
@@ -56,27 +58,25 @@ export async function POST(req: NextRequest) {
       accessToken = data.access_token;
       const newExpiresAt = Math.floor(Date.now() / 1000) + data.expires_in;
 
-      // Save refreshed tokens in DB
-      await prisma.account.update({
-        where: { id: account.id },
-        data: {
-          access_token: accessToken,
-          expires_at: newExpiresAt,
-        },
+      // Save refreshed tokens in Firebase Realtime Database
+      await set(ref(rtdb, `accounts/${userId}`), {
+        ...account,
+        access_token: accessToken,
+        expires_at: newExpiresAt,
       });
-      console.log('[Gmail Sync] Access token refreshed successfully.');
+      console.log('[Gmail Sync] Access token refreshed successfully in Firebase.');
     } catch (err: any) {
       console.error('[Gmail Sync] Failed to refresh access token:', err);
       return NextResponse.json({ error: 'Failed to refresh Google credentials: ' + err.message }, { status: 500 });
     }
   }
 
-  // 3. Fetch all messages from Gmail (including spam and trash) with paging
+  // 3. Fetch messages from Gmail
   try {
     let messages: any[] = [];
     let nextPageToken: string | undefined = undefined;
     let pagesFetched = 0;
-    const maxPages = 10; // Max 5000 messages total
+    const maxPages = 10;
 
     do {
       let url = 'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=500&includeSpamTrash=true';
@@ -105,10 +105,10 @@ export async function POST(req: NextRequest) {
       pagesFetched++;
     } while (nextPageToken && pagesFetched < maxPages);
 
-    // 4. Fetch already-indexed Gmail IDs from context server to avoid duplicate downloads
+    const contextServer = process.env.CONTEXT_SERVER_URL || 'http://127.0.0.1:8001';
     let indexedGmailIds = new Set<string>();
     try {
-      const idsRes = await fetch('http://127.0.0.1:8001/memories/gmail-ids', {
+      const idsRes = await fetch(new URL('/memories/gmail-ids', contextServer).toString(), {
         headers: {
           'Authorization': `Bearer ${process.env.NEXTAUTH_SECRET || ''}`
         }
@@ -120,13 +120,10 @@ export async function POST(req: NextRequest) {
         }
       }
     } catch (e) {
-      console.warn('[Gmail Sync] Could not fetch indexed gmail IDs from context server:', e);
+      console.warn('[Gmail Sync] Could not fetch indexed gmail IDs:', e);
     }
 
     const newMessages = messages.filter((msg: any) => !indexedGmailIds.has(msg.id));
-    console.log(`[Gmail Sync] Found ${messages.length} total messages. ${newMessages.length} are new.`);
-
-    // 5. Limit number of new emails to sync in a single run (safeguard against timeouts)
     const limitNewMessages = newMessages.slice(0, 1000);
 
     const fetchDetails = async (msgInfo: any) => {
@@ -168,12 +165,10 @@ export async function POST(req: NextRequest) {
         if (e.message === 'UNAUTHORIZED') {
           throw e;
         }
-        console.error(`[Gmail Sync] Failed fetching detail for ${msgInfo.id}:`, e);
         return null;
       }
     };
 
-    // 6. Fetch details in parallel batches of 25 to avoid rate limits
     const batchSize = 25;
     let parsedEmails: any[] = [];
     for (let i = 0; i < limitNewMessages.length; i += batchSize) {
@@ -195,22 +190,19 @@ export async function POST(req: NextRequest) {
     let storedCount = 0;
     for (const item of parsedEmails) {
       if (!item) continue;
-
-      const ingestRes = await fetch('http://127.0.0.1:8001/memories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXTAUTH_SECRET || ''}`
-        },
-        body: JSON.stringify(item),
-      });
-
-      if (ingestRes.ok) {
-        const resData = await ingestRes.json();
-        if (resData.status === 'ok') {
+      try {
+        const ingestRes = await fetch(new URL('/memories', contextServer).toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${process.env.NEXTAUTH_SECRET || ''}`
+          },
+          body: JSON.stringify(item),
+        });
+        if (ingestRes.ok) {
           storedCount++;
         }
-      }
+      } catch (e) {}
     }
 
     return NextResponse.json({ success: true, count: storedCount });
@@ -245,14 +237,12 @@ function getEmailBody(payload: any): string {
     return text;
   }
   if (payload.parts) {
-    // 1. Try to find text/plain first
     for (const part of payload.parts) {
       if (part.mimeType === 'text/plain' && part.body?.data) {
         const base64 = part.body.data.replace(/-/g, '+').replace(/_/g, '/');
         return Buffer.from(base64, 'base64').toString('utf-8');
       }
     }
-    // 2. Try to find text/html fallback
     for (const part of payload.parts) {
       if (part.mimeType === 'text/html' && part.body?.data) {
         const base64 = part.body.data.replace(/-/g, '+').replace(/_/g, '/');
@@ -260,7 +250,6 @@ function getEmailBody(payload: any): string {
         return stripHtml(html);
       }
     }
-    // 3. Check recursively
     for (const part of payload.parts) {
       const body = getEmailBody(part);
       if (body) return body;

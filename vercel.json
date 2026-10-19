@@ -1,0 +1,53 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "promptpilot": {
+      "root": "Promptpilot",
+      "framework": "nextjs"
+    },
+    "selenium_tests": {
+      "root": "selenium_tests",
+      "runtime": "python",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "promptpilot",
+          "format": "url",
+          "env": "PROMPTPILOT_URL"
+        }
+      ]
+    },
+    "security_tests": {
+      "root": "security_tests",
+      "runtime": "python",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "promptpilot",
+          "format": "url",
+          "env": "PROMPTPILOT_URL"
+        }
+      ]
+    },
+    "appium_tests": {
+      "root": "appium_tests",
+      "runtime": "python",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "promptpilot",
+          "format": "url",
+          "env": "PROMPTPILOT_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "promptpilot"
+      }
+    }
+  ]
+}
