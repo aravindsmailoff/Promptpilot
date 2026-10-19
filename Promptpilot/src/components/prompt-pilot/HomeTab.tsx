@@ -75,6 +75,10 @@ interface HomeTabProps {
 export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const { data: session } = useSession();
   const { settings, updateSetting } = useSettings();
+  const isCloudHost = typeof window !== 'undefined' && 
+    !window.location.hostname.includes('localhost') && 
+    !window.location.hostname.includes('127.0.0.1');
+  const effectiveUseOllama = !isCloudHost && settings.useOllama;
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [task, setTask] = useState('');
 
@@ -184,7 +188,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         imageUri: imageUri || undefined,
         fileText: fileText || undefined,
         settings: {
-          useOllama: settings.useOllama,
+          useOllama: effectiveUseOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
           ollamaModel: settings.ollamaModel,
           localEngine: settings.localEngine,
@@ -208,7 +212,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       
       toast({
         title: "Autonomous Routing Complete",
-        description: `Mission assigned to ${settings.useOllama ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) : output.selectedAI}`
+        description: `Mission assigned to ${effectiveUseOllama ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) : output.selectedAI}`
       });
 
       // Save mission to DB & localStorage
@@ -217,10 +221,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       const isVideo = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Video Generation' : false;
       const missionPayload = {
         taskDescription: originalTask,
-        selectedAI: settings.useOllama && !isImage && !isVideo
+        selectedAI: effectiveUseOllama && !isImage && !isVideo
           ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
           : output.selectedAI,
-        aiUrl: settings.useOllama && !isImage && !isVideo
+        aiUrl: effectiveUseOllama && !isImage && !isVideo
           ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
           : output.aiUrl,
         reasoning: output.reasoning,
@@ -264,7 +268,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         previousPrompt: result.optimizedPrompt,
         feedback: correctionFeedback,
         settings: {
-          useOllama: settings.useOllama,
+          useOllama: effectiveUseOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
           ollamaModel: settings.ollamaModel,
           localEngine: settings.localEngine,
@@ -305,10 +309,10 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       } else {
         savedId = await saveMissionHistory({
           taskDescription: task,
-          selectedAI: settings.useOllama && !isImage && !isVideo
+          selectedAI: effectiveUseOllama && !isImage && !isVideo
             ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
             : result.selectedAI,
-          aiUrl: settings.useOllama && !isImage && !isVideo
+          aiUrl: effectiveUseOllama && !isImage && !isVideo
             ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
             : result.aiUrl,
           reasoning: result.reasoning,
@@ -378,7 +382,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         isImage,
         isVideo,
         {
-          useOllama: settings.useOllama,
+          useOllama: effectiveUseOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
           ollamaModel: settings.ollamaModel,
           localEngine: settings.localEngine,
@@ -481,7 +485,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         isImage, 
         isVideo,
         {
-          useOllama: settings.useOllama,
+          useOllama: effectiveUseOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
           ollamaModel: settings.ollamaModel,
           localEngine: settings.localEngine,
@@ -849,20 +853,29 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 id="cloud-ai-btn"
                 type="button"
                 onClick={() => updateSetting('useOllama', false)}
-                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!settings.useOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${!effectiveUseOllama ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
               >
                 Cloud AI
               </button>
               <button
                 id="local-llm-btn"
                 type="button"
-                onClick={() => updateSetting('useOllama', true)}
-                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${settings.useOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
+                onClick={() => {
+                  if (isCloudHost) {
+                    toast({
+                      title: "Cloud Engine Active",
+                      description: "Local Ollama is designed for local PC runs. On Vercel, SPARK is powered by the Cloud Neural Fleet."
+                    });
+                    return;
+                  }
+                  updateSetting('useOllama', true);
+                }}
+                className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${effectiveUseOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
               >
                 Local LLM
               </button>
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-widest text-white/40 whitespace-nowrap">
-                Active: {settings.useOllama 
+                Active: {effectiveUseOllama 
                   ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) 
                   : 'Cloud Routing Fleet'}
               </div>
@@ -940,9 +953,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
             isLoading={loading}
             isExecuting={executing}
             selectedAI={result?.selectedAI}
-            activeModel={settings.useOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
+            activeModel={effectiveUseOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
             taskDescription={task}
-            useOllama={settings.useOllama}
+            useOllama={effectiveUseOllama}
           />
         </div>
       )}
@@ -955,7 +968,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 <div className="space-y-6">
                   <div className="flex flex-wrap items-center gap-5">
                     <Badge className="bg-primary text-primary-foreground text-xs px-6 py-2 rounded-full font-black uppercase tracking-widest shadow-xl">
-                      Fleet Core: {settings.useOllama 
+                      Fleet Core: {effectiveUseOllama 
                         ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
                         : result.selectedAI}
                     </Badge>
@@ -1087,9 +1100,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                 isLoading={loading && isLatestUserMsg}
                                 isExecuting={executing && isLatestUserMsg}
                                 selectedAI={result?.selectedAI}
-                                activeModel={settings.useOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
+                                activeModel={effectiveUseOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
                                 taskDescription={msg.content}
-                                useOllama={settings.useOllama}
+                                useOllama={effectiveUseOllama}
                               />
                             </div>
                           </div>
@@ -1125,9 +1138,9 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                     ? "Powered by FLUX.1 [schnell]" 
                                     : isMsgVideo
                                     ? `Powered by ${result?.selectedAI || "Stable Video Diffusion"}`
-                                    : settings.useOllama
+                                    : effectiveUseOllama
                                     ? (settings.localEngine === 'python' ? 'Powered by Local Python Server' : `Powered by Ollama (${settings.ollamaModel})`)
-                                    : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
+                                    : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Cloud AI Fleet")}
                                 </span>
                               </div>
                             </div>
@@ -1215,7 +1228,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                               <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
                             </div>
                             <p className="text-xs text-white/50 mt-0.5">
-                              {settings.useOllama ? `Executing locally via Ollama (${settings.ollamaModel})` : "Processing via Neural AI Fleet"}
+                              {effectiveUseOllama ? `Executing locally via Ollama (${settings.ollamaModel})` : "Processing via Neural AI Fleet"}
                             </p>
                           </div>
                         </div>
@@ -1291,9 +1304,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                         <div className="flex items-center justify-between text-[10px] text-white/40 font-medium tracking-wider">
                           <span>Press Enter to send • Shift + Enter for new line</span>
                           <span>
-                            {typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')
-                              ? 'AI Engine: Cloud Neural Fleet'
-                              : (settings.useOllama ? `Ollama Engine: ${settings.ollamaModel}` : 'AI Engine: Cloud Fleet')}
+                            {effectiveUseOllama ? `Ollama Engine: ${settings.ollamaModel}` : 'AI Engine: Cloud Neural Fleet'}
                           </span>
                         </div>
                       </div>

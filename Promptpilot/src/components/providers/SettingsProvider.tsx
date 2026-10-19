@@ -75,6 +75,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             finalSettings.ollamaBaseUrl.includes('127.0.0.1');
           if (isLocalhostUrl) {
             finalSettings.useOllama = false;
+            try {
+              localStorage.setItem('SPARK_settings', JSON.stringify(finalSettings));
+            } catch (storageErr) {}
           }
         }
 
