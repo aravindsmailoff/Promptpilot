@@ -137,14 +137,15 @@ class MainActivity : ComponentActivity() {
             Build.MODEL.contains("Emulator", ignoreCase = true) ||
             Build.MODEL.contains("Android SDK", ignoreCase = true) ||
             Build.MANUFACTURER.contains("Genymotion", ignoreCase = true) ||
-            (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")) ||
             Build.PRODUCT.startsWith("sdk") ||
             Build.HARDWARE == "goldfish" || Build.HARDWARE == "ranchu"
-        val fallbackDefault = "file:///android_asset/index.html"
-        val serverUrl = sharedPrefs.getString("server_url", null) ?: run {
+        val fallbackDefault = if (isEmulator) "http://10.0.2.2:9002" else "http://192.168.29.57:9002"
+        var currentSaved = sharedPrefs.getString("server_url", null)
+        if (currentSaved == null || currentSaved.startsWith("file:///")) {
+            currentSaved = fallbackDefault
             sharedPrefs.edit().putString("server_url", fallbackDefault).apply()
-            fallbackDefault
         }
+        val serverUrl = currentSaved
 
         // Initialize native Google Sign-In
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -252,13 +253,6 @@ class MainActivity : ComponentActivity() {
                     description: String?,
                     failingUrl: String?
                 ) {
-                    if (failingUrl != null && !failingUrl.startsWith("file:///android_asset")) {
-                        runOnUiThread {
-                            android.widget.Toast.makeText(this@MainActivity, "Server offline. Loading bundled app...", android.widget.Toast.LENGTH_SHORT).show()
-                            view?.loadUrl("file:///android_asset/index.html")
-                        }
-                        return
-                    }
                     val safeUrl = serverUrl
                     val errorHtml = """
                         <!DOCTYPE html>
@@ -542,7 +536,7 @@ class MainActivity : ComponentActivity() {
             (Build.BRAND.startsWith("generic") && Build.DEVICE.startsWith("generic")) ||
             Build.PRODUCT.startsWith("sdk") ||
             Build.HARDWARE == "goldfish" || Build.HARDWARE == "ranchu"
-        val defaultUrl = "file:///android_asset/index.html"
+        val defaultUrl = if (isEmulator) "http://10.0.2.2:9002" else "http://192.168.29.57:9002"
         val currentUrl = sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl
 
         val input = EditText(this).apply {
@@ -553,8 +547,8 @@ class MainActivity : ComponentActivity() {
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Configure Backend Server URL")
-            .setMessage("Set the address of your Render Cloud URL or local server:")
+            .setTitle("Configure Server URL")
+            .setMessage("Set the address of your Next.js application server:")
             .setView(input)
             .setPositiveButton("Save") { dialog, _ ->
                 val newUrl = input.text.toString().trim()
@@ -564,9 +558,9 @@ class MainActivity : ComponentActivity() {
                 }
                 dialog.dismiss()
             }
-            .setNeutralButton("Use Bundled App") { dialog, _ ->
-                sharedPrefs.edit().putString("server_url", "file:///android_asset/index.html").apply()
-                webView.loadUrl("file:///android_asset/index.html")
+            .setNeutralButton("Reset Default") { dialog, _ ->
+                sharedPrefs.edit().putString("server_url", defaultUrl).apply()
+                webView.loadUrl(defaultUrl)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel") { dialog, _ ->
@@ -581,7 +575,7 @@ class MainActivity : ComponentActivity() {
         val data = intent.data
         if (data != null && (data.scheme == "promptpilot" || data.scheme == "spark")) {
             val sharedPrefs = getSharedPreferences("promptpilot_prefs", MODE_PRIVATE)
-            val defaultUrl = "file:///android_asset/index.html"
+            val defaultUrl = "http://192.168.29.57:9002"
             val serverUrl = sharedPrefs.getString("server_url", defaultUrl) ?: defaultUrl
             webView.loadUrl(serverUrl)
         }
