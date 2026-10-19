@@ -7,6 +7,7 @@
     "dev:next": "npm --prefix Promptpilot run dev:next",
     "build": "npm --prefix Promptpilot run build",
     "start": "npm --prefix Promptpilot run start",
+    "backend": "node Promptpilot/server.js",
     "lint": "npm --prefix Promptpilot run lint",
     "typecheck": "npm --prefix Promptpilot run typecheck"
   }
