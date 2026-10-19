@@ -199,8 +199,13 @@ export async function executePromptViaApi(
   const activeUrl = settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
   const pyUrl = settings?.pythonServerUrl || 'http://127.0.0.1:8000';
 
-  // 1. Local Engine execution (Ollama with qwen3.5:2b)
-  if (useOllama) {
+  const isCloud = process.env.VERCEL === '1' || 
+    Boolean(process.env.VERCEL_ENV) || 
+    Boolean(process.env.VERCEL_URL) || 
+    Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+  // 1. Local Engine execution (only if explicitly requested AND not running on cloud serverless)
+  if (useOllama && !isCloud) {
     try {
       if (localEngine === 'python') {
         console.log(`[SPARK] Executing via Local Python Server: ${pyUrl}`);
@@ -221,11 +226,13 @@ export async function executePromptViaApi(
         );
       }
     } catch (localErr: any) {
-      console.error(`[SPARK Execution] Local Ollama failed: ${localErr.message}`);
-      throw new Error(`Local model execution failed (${activeModel}): ${localErr.message}`);
+      console.warn(`[SPARK Execution] Local Ollama unavailable (${localErr.message}). Automatically falling back to Cloud AI Fleet...`);
+      text = '';
     }
-  } else {
-    // Only use Cloud AI if useOllama was explicitly set to false
+  }
+
+  // 2. Cloud AI Fleet execution (runs in cloud, when useOllama is false, or as instant fallback)
+  if (!text) {
     console.log(`[SPARK Execution] Synthesizing output via Cloud AI Fleet...`);
     for (const model of ROUTING_MODELS) {
       try {
@@ -243,6 +250,9 @@ export async function executePromptViaApi(
   }
 
   if (!text) {
+    if (isCloud) {
+      return "AI Cloud Fleet response unavailable. Please verify your network connection and ensure HF_TOKEN is configured in Vercel project environment variables.";
+    }
     return `Execution failed: Could not retrieve a response from local Ollama model (${activeModel} at ${activeUrl}). Please make sure Ollama is running ('ollama serve').`;
   }
 

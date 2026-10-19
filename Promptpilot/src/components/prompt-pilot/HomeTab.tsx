@@ -1290,7 +1290,11 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                         
                         <div className="flex items-center justify-between text-[10px] text-white/40 font-medium tracking-wider">
                           <span>Press Enter to send • Shift + Enter for new line</span>
-                          <span>Ollama Engine: {settings.ollamaModel}</span>
+                          <span>
+                            {typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')
+                              ? 'AI Engine: Cloud Neural Fleet'
+                              : (settings.useOllama ? `Ollama Engine: ${settings.ollamaModel}` : 'AI Engine: Cloud Fleet')}
+                          </span>
                         </div>
                       </div>
                     )}

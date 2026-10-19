@@ -77,8 +77,13 @@ ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
 
     let rawResponse = '';
 
+    const isCloud = process.env.VERCEL === '1' || 
+      Boolean(process.env.VERCEL_ENV) || 
+      Boolean(process.env.VERCEL_URL) || 
+      Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
     // ── Attempt 1: Local Engine (Ollama / Python Server) ────────────────
-    if (useOllama) {
+    if (useOllama && !isCloud) {
       try {
         console.log(`[SPARK] Attempting local routing via ${localEngine} (${activeModel} at ${activeUrl})...`);
         
@@ -109,13 +114,13 @@ ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
           );
         }
       } catch (localErr: any) {
-        console.warn(`[SPARK] Local routing failed (${localErr.message}).`);
+        console.warn(`[SPARK] Local routing unavailable (${localErr.message}). Automatically falling back to Cloud AI Fleet...`);
         rawResponse = '';
       }
     }
 
-    // ── Attempt 2: Cloud AI Fleet (Only if useOllama is explicitly false or local engine was unavailable) ─
-    if (!rawResponse && !useOllama) {
+    // ── Attempt 2: Cloud AI Fleet (runs in cloud, when useOllama is false, or as instant fallback) ─
+    if (!rawResponse) {
       console.log(`[SPARK] Routing task using Cloud AI Fleet (Hugging Face Router)...`);
       for (const model of ROUTING_MODELS) {
         try {

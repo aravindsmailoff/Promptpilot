@@ -37,7 +37,12 @@ The output JSON structure MUST contain exactly this key:
     const userText = `Previous Prompt: """${input.previousPrompt}"""
 User Feedback for refinement: """${input.feedback}"""`;
 
-    if (input.settings?.useOllama !== false) {
+    const isCloud = process.env.VERCEL === '1' || 
+      Boolean(process.env.VERCEL_ENV) || 
+      Boolean(process.env.VERCEL_URL) || 
+      Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+    if (input.settings?.useOllama !== false && !isCloud) {
       try {
         let response = '';
 
@@ -101,14 +106,13 @@ User Feedback for refinement: """${input.feedback}"""`;
         return parsedOutput;
 
       } catch (error: any) {
-        console.warn(`[SPARK] Local Ollama refinement failed:`, error.message);
-        throw new Error(`Local model refinement error: ${error.message}`);
+        console.warn(`[SPARK] Local Ollama refinement unavailable (${error.message}). Automatically falling back to Cloud AI Fleet...`);
       }
     }
 
     let lastError: any = null;
 
-    // Only fallback if useOllama was explicitly disabled
+    // Cloud AI Fleet fallback
     for (const model of ROUTING_MODELS) {
       try {
         console.log(`[SPARK] Refining prompt using Hugging Face model: ${model}`);

@@ -11,6 +11,15 @@ export async function executeOllamaChat(
   const cleanUrl = baseURL.trim() || 'http://127.0.0.1:11434';
   const ollamaModel = model.trim() || 'qwen3.5:2b';
 
+  // In cloud serverless (Vercel), localhost:11434 cannot exist; fail immediately to trigger Cloud AI fallback
+  const isCloud = process.env.VERCEL === '1' || 
+    Boolean(process.env.VERCEL_ENV) || 
+    Boolean(process.env.VERCEL_URL) || 
+    Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+  if (isCloud && (cleanUrl.includes('127.0.0.1') || cleanUrl.includes('localhost'))) {
+    throw new Error('Local Ollama is not accessible on cloud serverless environment. Falling back to Cloud AI.');
+  }
+
   try {
     const chatUrl = `${cleanUrl}/api/chat`;
     console.log(`[Ollama Client] Directing request to: ${chatUrl} (Model: ${ollamaModel}, think: false, GPU: 100%)`);
@@ -66,8 +75,8 @@ export async function executeOllamaChat(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-      // 120 seconds timeout for local inference
-      signal: AbortSignal.timeout(120000),
+      // 8 seconds timeout for local inference
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) {
