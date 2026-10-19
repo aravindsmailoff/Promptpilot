@@ -204,8 +204,13 @@ export async function executePromptViaApi(
     Boolean(process.env.VERCEL_URL) || 
     Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
-  // 1. Local Engine execution (only if explicitly requested AND not running on cloud serverless)
-  if (useOllama && !isCloud) {
+  const isLocalhost = activeUrl.includes('127.0.0.1') || activeUrl.includes('localhost');
+  const targetOllamaUrl = (isCloud && isLocalhost && process.env.OLLAMA_BASE_URL) 
+    ? process.env.OLLAMA_BASE_URL 
+    : activeUrl;
+
+  // 1. Ollama Engine execution (runs on local PC or via secure Ollama Bridge on Vercel)
+  if (useOllama) {
     try {
       if (localEngine === 'python') {
         console.log(`[SPARK] Executing via Local Python Server: ${pyUrl}`);
@@ -215,9 +220,9 @@ export async function executePromptViaApi(
           0.4
         );
       } else {
-        console.log(`[SPARK] Executing via Local Ollama (${activeModel} at ${activeUrl})...`);
+        console.log(`[SPARK] Executing via Ollama (${activeModel} at ${targetOllamaUrl})...`);
         text = await executeOllamaChat(
-          activeUrl,
+          targetOllamaUrl,
           activeModel,
           conversationMessages,
           0.4,
@@ -226,13 +231,11 @@ export async function executePromptViaApi(
         );
       }
     } catch (localErr: any) {
-      console.warn(`[SPARK Execution] Local Ollama unavailable (${localErr.message}). Automatically falling back to Cloud AI Fleet...`);
-      text = '';
+      console.warn(`[SPARK Execution] Ollama execution failed:`, localErr.message);
+      return `Ollama Execution Error: ${localErr.message}`;
     }
-  }
-
-  // 2. Cloud AI Fleet execution (runs in cloud, when useOllama is false, or as instant fallback)
-  if (!text) {
+  } else {
+    // 2. Cloud AI Fleet execution (only if explicitly requested by user)
     console.log(`[SPARK Execution] Synthesizing output via Cloud AI Fleet...`);
     for (const model of ROUTING_MODELS) {
       try {

@@ -33,3 +33,6 @@ Promptpilot/baileys_auth_info/
 Promptpilot/temp.safetensors
 Promptpilot/start-tunnel.js
 local.properties
+
+cloudflared.exe
+*.exe

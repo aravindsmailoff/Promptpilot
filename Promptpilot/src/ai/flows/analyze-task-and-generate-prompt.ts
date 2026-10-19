@@ -82,10 +82,15 @@ ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
       Boolean(process.env.VERCEL_URL) || 
       Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
-    // ── Attempt 1: Local Engine (Ollama / Python Server) ────────────────
-    if (useOllama && !isCloud) {
+    const isLocalhost = activeUrl.includes('127.0.0.1') || activeUrl.includes('localhost');
+    const targetOllamaUrl = (isCloud && isLocalhost && process.env.OLLAMA_BASE_URL) 
+      ? process.env.OLLAMA_BASE_URL 
+      : activeUrl;
+
+    // ── Attempt 1: Ollama Engine (runs locally or via secure tunnel) ────────────────
+    if (useOllama) {
       try {
-        console.log(`[SPARK] Attempting local routing via ${localEngine} (${activeModel} at ${activeUrl})...`);
+        console.log(`[SPARK] Attempting routing via ${localEngine} (${activeModel} at ${targetOllamaUrl})...`);
         
         if (localEngine === 'python') {
           const pyUrl = input.settings?.pythonServerUrl || 'http://127.0.0.1:8000';
@@ -103,7 +108,7 @@ ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
             userContent.push({ type: 'image_url', image_url: { url: input.imageUri } });
           }
           rawResponse = await executeOllamaChat(
-            activeUrl,
+            targetOllamaUrl,
             activeModel,
             [
               { role: 'system', content: systemPrompt },
@@ -114,13 +119,11 @@ ${input.fileText ? `Document Context: "${input.fileText}"` : ''}`;
           );
         }
       } catch (localErr: any) {
-        console.warn(`[SPARK] Local routing unavailable (${localErr.message}). Automatically falling back to Cloud AI Fleet...`);
-        rawResponse = '';
+        console.warn(`[SPARK] Ollama routing failed:`, localErr.message);
+        throw new Error(`Ollama Routing Error: ${localErr.message}`);
       }
-    }
-
-    // ── Attempt 2: Cloud AI Fleet (runs in cloud, when useOllama is false, or as instant fallback) ─
-    if (!rawResponse) {
+    } else {
+      // ── Attempt 2: Cloud AI Fleet (only if useOllama is false) ─
       console.log(`[SPARK] Routing task using Cloud AI Fleet (Hugging Face Router)...`);
       for (const model of ROUTING_MODELS) {
         try {

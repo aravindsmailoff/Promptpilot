@@ -8,20 +8,25 @@ export async function executeOllamaChat(
   responseFormat?: { type: 'json_object' },
   options?: { numCtx?: number; numPredict?: number }
 ): Promise<string> {
-  const cleanUrl = baseURL.trim() || 'http://127.0.0.1:11434';
+  let targetUrl = baseURL.trim() || 'http://127.0.0.1:11434';
   const ollamaModel = model.trim() || 'qwen3.5:2b';
 
-  // In cloud serverless (Vercel), localhost:11434 cannot exist; fail immediately to trigger Cloud AI fallback
+  // In cloud serverless (Vercel), resolve localhost to process.env.OLLAMA_BASE_URL if configured
   const isCloud = process.env.VERCEL === '1' || 
     Boolean(process.env.VERCEL_ENV) || 
     Boolean(process.env.VERCEL_URL) || 
     Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
-  if (isCloud && (cleanUrl.includes('127.0.0.1') || cleanUrl.includes('localhost'))) {
-    throw new Error('Local Ollama is not accessible on cloud serverless environment. Falling back to Cloud AI.');
+
+  if (isCloud && (targetUrl.includes('127.0.0.1') || targetUrl.includes('localhost'))) {
+    if (process.env.OLLAMA_BASE_URL && !process.env.OLLAMA_BASE_URL.includes('127.0.0.1') && !process.env.OLLAMA_BASE_URL.includes('localhost')) {
+      targetUrl = process.env.OLLAMA_BASE_URL.trim();
+    } else {
+      throw new Error('Vercel cloud server cannot connect directly to 127.0.0.1. Please enter your secure Ollama Tunnel URL (from cloudflared/ngrok) in Settings or set OLLAMA_BASE_URL in Vercel.');
+    }
   }
 
   try {
-    const chatUrl = `${cleanUrl}/api/chat`;
+    const chatUrl = `${targetUrl}/api/chat`;
     console.log(`[Ollama Client] Directing request to: ${chatUrl} (Model: ${ollamaModel}, think: false, GPU: 100%)`);
 
     // Format messages for Ollama API (ensures message.content is a string, moves images to .images)
@@ -75,8 +80,8 @@ export async function executeOllamaChat(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-      // 8 seconds timeout for local inference
-      signal: AbortSignal.timeout(8000),
+      // 60 seconds timeout for neural inference across tunnel
+      signal: AbortSignal.timeout(60000),
     });
 
     if (!response.ok) {

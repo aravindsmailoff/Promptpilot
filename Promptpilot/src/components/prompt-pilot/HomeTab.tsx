@@ -78,7 +78,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const isCloudHost = typeof window !== 'undefined' && 
     !window.location.hostname.includes('localhost') && 
     !window.location.hostname.includes('127.0.0.1');
-  const effectiveUseOllama = !isCloudHost && settings.useOllama;
+  const effectiveUseOllama = settings.useOllama;
   const [currentHistoryId, setCurrentHistoryId] = useState<string | null>(null);
   const [task, setTask] = useState('');
 
@@ -860,16 +860,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               <button
                 id="local-llm-btn"
                 type="button"
-                onClick={() => {
-                  if (isCloudHost) {
-                    toast({
-                      title: "Cloud Engine Active",
-                      description: "Local Ollama is designed for local PC runs. On Vercel, SPARK is powered by the Cloud Neural Fleet."
-                    });
-                    return;
-                  }
-                  updateSetting('useOllama', true);
-                }}
+                onClick={() => updateSetting('useOllama', true)}
                 className={`flex-1 sm:flex-none px-6 h-11 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 ${effectiveUseOllama ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
               >
                 Local LLM

@@ -2,12 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { User, Zap, Info, Loader2, LogIn, LogOut, ShieldAlert } from 'lucide-react';
+import { User, Zap, Info, Loader2, LogIn, LogOut, ShieldAlert, Cpu, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import { useState, useEffect } from 'react';
@@ -317,6 +318,83 @@ export function SettingsTab() {
                   checked={settings.manualModelOverride}
                   onCheckedChange={(checked) => updateSetting('manualModelOverride', checked)}
                   className="data-[state=checked]:bg-primary" 
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Dedicated Ollama Neural Core & Cloud Bridge Card */}
+          <Card className="rounded-3xl bg-gradient-to-b from-[#0f172a]/90 via-[#070b16]/95 to-[#030712] border border-cyan-500/30 shadow-2xl backdrop-blur-xl">
+            <CardHeader className="p-8">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-3 text-2xl font-black text-white">
+                  <Cpu className="h-6 w-6 text-cyan-400" />
+                  Ollama Neural Engine (Local & Cloud)
+                </CardTitle>
+                <Badge className="bg-cyan-500/20 text-cyan-300 border-cyan-500/30 font-mono text-[10px] uppercase tracking-widest px-3 py-1">
+                  100% Dedicated GPU
+                </Badge>
+              </div>
+              <CardDescription className="text-base text-white/60">
+                Execute missions purely through your RTX GPU and Ollama models without relying on any third-party cloud AI.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8 p-8 pt-0">
+              <div className="space-y-2">
+                <Label htmlFor="ollama-url-input" className="text-base font-bold text-white flex items-center gap-2">
+                  <span>Ollama Server / Cloud Bridge URL</span>
+                </Label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Input 
+                    id="ollama-url-input"
+                    value={settings.ollamaBaseUrl || ''}
+                    onChange={(e) => updateSetting('ollamaBaseUrl', e.target.value)}
+                    placeholder="https://your-tunnel.trycloudflare.com or http://127.0.0.1:11434"
+                    className="h-12 rounded-xl bg-black/60 border-white/10 text-white font-mono text-sm flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={async () => {
+                      const url = (settings.ollamaBaseUrl || 'http://127.0.0.1:11434').replace(/\/+$/, '');
+                      try {
+                        toast({ title: "Testing Ollama Bridge...", description: `Connecting to ${url}` });
+                        const res = await fetch(`${url}/api/tags`);
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        const data = await res.json();
+                        const modelList = data.models?.map((m: any) => m.name).join(', ') || 'Connected';
+                        toast({
+                          title: "Ollama Bridge Connected!",
+                          description: `GPU Core Online! Models: ${modelList}`
+                        });
+                      } catch (err: any) {
+                        toast({
+                          variant: "destructive",
+                          title: "Connection Failed",
+                          description: `Could not reach ${url}: ${err.message}`
+                        });
+                      }
+                    }}
+                    className="h-12 px-6 rounded-xl border-cyan-500/30 hover:bg-cyan-500/10 text-cyan-300 font-bold text-xs uppercase shadow-lg shadow-cyan-500/10"
+                  >
+                    Test Connection
+                  </Button>
+                </div>
+                <p className="text-xs text-white/40 leading-relaxed">
+                  When accessing your site on Vercel or physical phone, run <code className="text-cyan-300 font-mono">START_OLLAMA_BRIDGE.bat</code> on your PC and paste the generated HTTPS URL above.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="ollama-model-input" className="text-base font-bold text-white">
+                  Active Model
+                </Label>
+                <Input 
+                  id="ollama-model-input"
+                  value={settings.ollamaModel || 'qwen3.5:2b'}
+                  onChange={(e) => updateSetting('ollamaModel', e.target.value)}
+                  placeholder="qwen3.5:2b"
+                  className="h-12 rounded-xl bg-black/60 border-white/10 text-white font-mono text-sm max-w-sm"
                 />
               </div>
             </CardContent>

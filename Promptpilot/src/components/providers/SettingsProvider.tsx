@@ -35,15 +35,7 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    const isCloudHost = typeof window !== 'undefined' && 
-      !window.location.hostname.includes('localhost') && 
-      !window.location.hostname.includes('127.0.0.1');
-    return {
-      ...DEFAULT_SETTINGS,
-      useOllama: isCloudHost ? false : DEFAULT_SETTINGS.useOllama
-    };
-  });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load from localStorage and server on mount
@@ -65,22 +57,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.warn('Failed to load settings:', e);
       } finally {
-        const isCloudHost = typeof window !== 'undefined' && 
-          !window.location.hostname.includes('localhost') && 
-          !window.location.hostname.includes('127.0.0.1');
-
-        if (isCloudHost) {
-          const isLocalhostUrl = !finalSettings.ollamaBaseUrl || 
-            finalSettings.ollamaBaseUrl.includes('localhost') || 
-            finalSettings.ollamaBaseUrl.includes('127.0.0.1');
-          if (isLocalhostUrl) {
-            finalSettings.useOllama = false;
-            try {
-              localStorage.setItem('SPARK_settings', JSON.stringify(finalSettings));
-            } catch (storageErr) {}
-          }
-        }
-
         setSettings(finalSettings);
         setIsLoaded(true);
       }

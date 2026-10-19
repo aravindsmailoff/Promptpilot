@@ -42,16 +42,24 @@ User Feedback for refinement: """${input.feedback}"""`;
       Boolean(process.env.VERCEL_URL) || 
       Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
 
-    if (input.settings?.useOllama !== false && !isCloud) {
+    const useOllama = input.settings?.useOllama !== false;
+    const activeModel = input.settings?.ollamaModel || 'qwen3.5:2b';
+    const activeUrl = input.settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
+    const isLocalhost = activeUrl.includes('127.0.0.1') || activeUrl.includes('localhost');
+    const targetOllamaUrl = (isCloud && isLocalhost && process.env.OLLAMA_BASE_URL) 
+      ? process.env.OLLAMA_BASE_URL 
+      : activeUrl;
+
+    if (useOllama) {
       try {
         let response = '';
 
         if (input.settings?.localEngine === 'python') {
-          const activeUrl = input.settings.pythonServerUrl || 'http://127.0.0.1:8000';
-          console.log(`[SPARK] Refining prompt using local Python Server: ${activeUrl}`);
+          const pyUrl = input.settings.pythonServerUrl || 'http://127.0.0.1:8000';
+          console.log(`[SPARK] Refining prompt using Python Server: ${pyUrl}`);
           
           response = await executePythonChat(
-            activeUrl,
+            pyUrl,
             [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: userText }
@@ -59,12 +67,10 @@ User Feedback for refinement: """${input.feedback}"""`;
             0.2
           );
         } else {
-          const activeModel = input.settings?.ollamaModel || 'qwen3.5:2b';
-          const activeUrl = input.settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
-          console.log(`[SPARK] Refining prompt using local Ollama model: ${activeModel}`);
+          console.log(`[SPARK] Refining prompt using Ollama: ${activeModel} at ${targetOllamaUrl}`);
 
           response = await executeOllamaChat(
-            activeUrl,
+            targetOllamaUrl,
             activeModel,
             [
               { role: 'system', content: systemPrompt },
