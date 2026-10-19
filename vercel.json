@@ -8,6 +8,7 @@
     "selenium_tests": {
       "root": "selenium_tests",
       "runtime": "python",
+      "entrypoint": "api/index.py",
       "bindings": [
         {
           "type": "service",
@@ -20,6 +21,7 @@
     "security_tests": {
       "root": "security_tests",
       "runtime": "python",
+      "entrypoint": "api/index.py",
       "bindings": [
         {
           "type": "service",
@@ -32,6 +34,7 @@
     "appium_tests": {
       "root": "appium_tests",
       "runtime": "python",
+      "entrypoint": "api/index.py",
       "bindings": [
         {
           "type": "service",
