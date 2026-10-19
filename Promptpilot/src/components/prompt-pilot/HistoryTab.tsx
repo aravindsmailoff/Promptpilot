@@ -25,6 +25,9 @@ import {
 import { getMissionHistory, deleteMissionHistory } from '@/lib/actions/history';
 import { formatDistanceToNow } from 'date-fns';
 import { MarkdownRenderer } from './MarkdownRenderer';
+import { Framer3DCard } from '@/components/framer-3d/Framer3DCard';
+import { DecryptedText } from '@/components/react-bits/DecryptedText';
+import { GradientText } from '@/components/react-bits/GradientText';
 
 interface HistoryItem {
   id: string;
@@ -47,29 +50,50 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Fetch history from DB
+  // Fetch history from DB with localStorage fallback
   const loadHistory = async () => {
-    if (!session) {
-      setHistory([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
       const records = await getMissionHistory();
-      // Cast the Date since Prisma returns Date objects
-      const formatted: HistoryItem[] = records.map((r: any) => ({
+      const formatted: HistoryItem[] = (records || []).map((r: any) => ({
         ...r,
         createdAt: new Date(r.createdAt)
       }));
-      setHistory(formatted);
+
+      // Merge with localStorage history for offline/local resilience
+      let localItems: HistoryItem[] = [];
+      try {
+        const stored = localStorage.getItem('SPARK_local_history');
+        if (stored) {
+          localItems = JSON.parse(stored).map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt)
+          }));
+        }
+      } catch (e) {}
+
+      const combined = [...formatted];
+      for (const loc of localItems) {
+        if (!combined.some(c => c.id === loc.id)) {
+          combined.push(loc);
+        }
+      }
+      combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setHistory(combined);
     } catch (err) {
       console.error(err);
-      toast({
-        variant: "destructive",
-        title: "Fetch Failed",
-        description: "Unable to retrieve your mission history from cloud database."
-      });
+      // Fall back to local storage if DB call fails
+      try {
+        const stored = localStorage.getItem('SPARK_local_history');
+        if (stored) {
+          const localItems = JSON.parse(stored).map((item: any) => ({
+            ...item,
+            createdAt: new Date(item.createdAt)
+          }));
+          setHistory(localItems);
+        }
+      } catch (e) {}
     } finally {
       setLoading(false);
     }
@@ -81,16 +105,18 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
 
   const handleDelete = async (id: string) => {
     try {
-      const success = await deleteMissionHistory(id);
-      if (success) {
-        setHistory(prev => prev.filter(item => item.id !== id));
-        toast({
-          title: "Mission Erased",
-          description: "Database entry permanently deleted."
-        });
-      } else {
-        throw new Error();
-      }
+      await deleteMissionHistory(id);
+      setHistory(prev => {
+        const next = prev.filter(item => item.id !== id);
+        try {
+          localStorage.setItem('SPARK_local_history', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+      toast({
+        title: "Mission Erased",
+        description: "Record permanently deleted."
+      });
     } catch (e) {
       toast({
         variant: "destructive",
@@ -123,33 +149,21 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
     item.optimizedPrompt.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  if (!session) {
-    return (
-      <div className="max-w-4xl mx-auto py-16 animate-in fade-in duration-700">
-        <Card className="glass-panel border-white/10 p-12 text-center space-y-8 bg-black/40">
-          <div className="mx-auto h-20 w-20 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-muted-foreground shadow-inner">
-            <Lock className="h-10 w-10 text-primary" />
-          </div>
-          <div className="space-y-3">
-            <h3 className="text-3xl font-black text-white uppercase tracking-tight">Security Lock Active</h3>
-            <p className="text-muted-foreground font-medium max-w-md mx-auto">
-              Please sign in with Google under the Settings tab to sync and access your mission history database.
-            </p>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-700 pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="space-y-4">
-          <h1 className="text-5xl font-black tracking-tighter text-white font-headline flex items-center gap-3">
-            <History className="h-10 w-10 text-primary" />
-            Mission Log
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/25 text-primary text-[10px] font-black uppercase tracking-widest shadow-[0_0_20px_rgba(59,130,246,0.2)] backdrop-blur-md">
+            <History className="h-3 w-3 text-cyan-400 animate-pulse" />
+            <span>Persistent PostgreSQL Storage</span>
+          </div>
+          <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white font-headline leading-tight">
+            Mission <br className="sm:hidden" />
+            <GradientText colors={["#00f2ff", "#38bdf8", "#818cf8", "#c084fc", "#00f2ff"]}>
+              Intelligence Log
+            </GradientText>
           </h1>
-          <p className="text-xl text-muted-foreground font-medium max-w-xl">
+          <p className="text-white/60 text-base md:text-lg font-medium max-w-xl">
             Review previous prompts, model selections, and response outputs saved to PostgreSQL.
           </p>
         </div>
@@ -199,17 +213,17 @@ export function HistoryTab({ onRelaunch }: { onRelaunch: (task: string) => void 
             const isExpanded = !!expandedItems[item.id];
             
             return (
-              <Card key={item.id} className="glass-panel border-white/5 overflow-hidden hover:border-white/15 transition-all duration-300">
+              <Card key={item.id} className="rounded-3xl bg-gradient-to-b from-[#0f172a]/90 via-[#070b16]/95 to-[#030712] border border-white/10 hover:border-cyan-400/40 overflow-hidden transition-all duration-300 shadow-xl backdrop-blur-xl">
                 <CardHeader className="p-8 pb-4">
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="space-y-4 flex-1">
                       <div className="flex flex-wrap items-center gap-3">
-                        <Badge className="bg-primary text-primary-foreground font-black text-[10px] px-3.5 py-1 uppercase tracking-widest">
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-primary to-cyan-500 text-white shadow-md shadow-primary/20">
                           {item.selectedAI}
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-white/10 bg-white/5 text-muted-foreground">
+                        </span>
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/5 border border-white/10 text-white/70">
                           {item.isImageTask ? 'Image Synthesizer' : 'Language Core'}
-                        </Badge>
+                        </span>
                         <div className="flex items-center gap-1.5 text-xs text-white/40 font-bold uppercase tracking-wider">
                           <Calendar className="h-3.5 w-3.5" />
                           {formatDistanceToNow(item.createdAt, { addSuffix: true })}

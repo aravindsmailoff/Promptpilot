@@ -27,7 +27,7 @@ export type RefinePromptOutput = z.infer<typeof RefinePromptOutputSchema>;
 export async function refinePrompt(input: RefinePromptInput): Promise<RefinePromptOutput> {
   try {
     const systemPrompt = `You are an expert prompt engineer tasked with refining prompts based on user feedback.
-Your goal is to improve the previous prompt so that it generates a better result, addressing the user's feedback directly. Ensure the refined prompt enforces startup-oriented parameters and explicitly forbids the target AI from hallucinating or outputting any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets in text guides.
+Your goal is to improve the previous prompt so that it generates a better result, addressing the user's feedback directly. Faithfully reflect the user's exact domain, tone, and intent (whether technical, creative, general, or business). Explicitly forbid the target AI from hallucinating or outputting any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets in text guides.
 
 The output JSON structure MUST contain exactly this key:
 {
@@ -37,13 +37,13 @@ The output JSON structure MUST contain exactly this key:
     const userText = `Previous Prompt: """${input.previousPrompt}"""
 User Feedback for refinement: """${input.feedback}"""`;
 
-    if (input.settings?.useOllama) {
+    if (input.settings?.useOllama !== false) {
       try {
         let response = '';
 
-        if (input.settings.localEngine === 'python') {
+        if (input.settings?.localEngine === 'python') {
           const activeUrl = input.settings.pythonServerUrl || 'http://127.0.0.1:8000';
-          console.log(`[PromptPilot] Refining prompt using local Python Server: ${activeUrl}`);
+          console.log(`[SPARK] Refining prompt using local Python Server: ${activeUrl}`);
           
           response = await executePythonChat(
             activeUrl,
@@ -54,9 +54,9 @@ User Feedback for refinement: """${input.feedback}"""`;
             0.2
           );
         } else {
-          const activeModel = input.settings.ollamaModel || 'gemma2:2b';
-          const activeUrl = input.settings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-          console.log(`[PromptPilot] Refining prompt using local Ollama model: ${activeModel}`);
+          const activeModel = input.settings?.ollamaModel || 'qwen3.5:2b';
+          const activeUrl = input.settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
+          console.log(`[SPARK] Refining prompt using local Ollama model: ${activeModel}`);
 
           response = await executeOllamaChat(
             activeUrl,
@@ -70,7 +70,7 @@ User Feedback for refinement: """${input.feedback}"""`;
           );
         }
 
-        console.log("[PromptPilot] Ollama raw refinement response:", response);
+        console.log("[SPARK] Ollama raw refinement response:", response);
 
         // Strip out internal reasoning/thinking processes (<think>...</think> or <thought>...</thought>)
         response = response.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
@@ -97,21 +97,21 @@ User Feedback for refinement: """${input.feedback}"""`;
         }
 
         const parsedOutput = RefinePromptOutputSchema.parse(parsedJson);
-        console.log("[PromptPilot] Ollama refinement success:", parsedOutput);
+        console.log("[SPARK] Ollama refinement success:", parsedOutput);
         return parsedOutput;
 
       } catch (error: any) {
-        console.warn(`[PromptPilot] Ollama/Python local refinement failed, falling back to Hugging Face Cloud API:`, error);
-        // Do not throw, allow execution to fall through to Hugging Face Cloud fallback
+        console.warn(`[SPARK] Local Ollama refinement failed:`, error.message);
+        throw new Error(`Local model refinement error: ${error.message}`);
       }
     }
 
     let lastError: any = null;
 
-    // Try routing models in sequence
+    // Only fallback if useOllama was explicitly disabled
     for (const model of ROUTING_MODELS) {
       try {
-        console.log(`[PromptPilot] Refining prompt using Hugging Face model: ${model}`);
+        console.log(`[SPARK] Refining prompt using Hugging Face model: ${model}`);
         
         const response = await hfClient.chat.completions.create({
           model: model,
@@ -128,7 +128,7 @@ User Feedback for refinement: """${input.feedback}"""`;
           throw new Error(`Empty response from Hugging Face model ${model}`);
         }
 
-        console.log("[PromptPilot] Refinement raw response content:", content);
+        console.log("[SPARK] Refinement raw response content:", content);
         
         // Clean up markdown block wraps if present
         let cleaned = content.trim();
@@ -154,11 +154,11 @@ User Feedback for refinement: """${input.feedback}"""`;
 
         // Parse and validate the response
         const parsedOutput = RefinePromptOutputSchema.parse(parsedJson);
-        console.log("[PromptPilot] Refinement success:", parsedOutput);
+        console.log("[SPARK] Refinement success:", parsedOutput);
         return parsedOutput;
 
       } catch (error: any) {
-        console.error(`[PromptPilot] Refinement error with model ${model}:`, error);
+        console.error(`[SPARK] Refinement error with model ${model}:`, error);
         lastError = error;
         // Fallback to the next model in the list
       }

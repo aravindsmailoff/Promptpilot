@@ -1,33 +1,20 @@
 import { OpenAI } from "openai";
 
 /**
- * Hugging Face Inference Router client.
- * Uses the OpenAI-compatible API via HF Router.
- *
- * Best open-source model for task routing / JSON structured output (2025):
- *   Primary:  Qwen/Qwen3-32B        — 258 tok/s, 321ms TTFT, JSON output, tools ✓
- *   Fallback: Qwen/Qwen3-8B         — lighter, still strong instruction following
- *   Legacy:   google/gemma-4-31B-it — original model, kept as last resort
- *
- * Selection criteria from live HF Router API (router.huggingface.co/v1/models):
- *  ✓ supports_structured_output (json_object mode)
- *  ✓ supports_tools
- *  ✓ low first_token_latency_ms
- *  ✓ high throughput (tokens/sec)
- *  ✓ Apache-2.0 or MIT license (fully open source)
+ * SPARK Cloud Intelligence Client (Hugging Face Inference Router).
+ * Uses Hugging Face OpenAI-compatible API endpoint (https://router.huggingface.co/v1).
+ * Serves as the cloud AI fallback when local Ollama is offline or unavailable.
  */
 export const hfClient = new OpenAI({
-  baseURL: "https://router.huggingface.co/v1",
-  apiKey: process.env.HF_TOKEN,
+  baseURL: process.env.HF_ROUTER_URL || "https://router.huggingface.co/v1",
+  apiKey: process.env.HF_TOKEN || "",
 });
 
-/**
- * Ordered list of models to try for routing/JSON tasks.
- * The system tries each in order and falls back on failure.
- */
 export const ROUTING_MODELS = [
   "Qwen/Qwen2.5-7B-Instruct",
-  "meta-llama/Llama-3.1-8B-Instruct",
+  "meta-llama/Llama-3.2-1B-Instruct",
+  "google/gemma-2-2b-it",
 ] as const;
 
 export const PRIMARY_ROUTING_MODEL = ROUTING_MODELS[0];
+

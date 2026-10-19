@@ -16,10 +16,10 @@ export interface AppSettings {
 const DEFAULT_SETTINGS: AppSettings = {
   instantCopy: true,
   toneProfile: 'professional',
-  manualModelOverride: false,
+  manualModelOverride: true,
   useOllama: true,
   ollamaBaseUrl: 'http://127.0.0.1:11434',
-  ollamaModel: 'gemma2:2b',
+  ollamaModel: 'qwen3.5:2b',
   localEngine: 'ollama',
   pythonServerUrl: 'http://127.0.0.1:8000'
 };
@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS: AppSettings = {
 interface SettingsContextType {
   settings: AppSettings;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
+  updateSettings: (partial: Partial<AppSettings>) => void;
   setAllSettings: (settings: AppSettings) => void;
   isLoaded: boolean;
 }
@@ -42,7 +43,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     async function loadSettings() {
       let finalSettings = { ...DEFAULT_SETTINGS };
       try {
-        const stored = localStorage.getItem('promptpilot_settings');
+        const stored = localStorage.getItem('SPARK_settings');
         if (stored) {
           finalSettings = { ...finalSettings, ...JSON.parse(stored) };
         }
@@ -51,7 +52,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const serverSettings = await res.json();
           finalSettings = { ...finalSettings, ...serverSettings };
-          localStorage.setItem('promptpilot_settings', JSON.stringify(finalSettings));
+          localStorage.setItem('SPARK_settings', JSON.stringify(finalSettings));
         }
       } catch (e) {
         console.warn('Failed to load settings:', e);
@@ -67,7 +68,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSettings((prev) => {
       const updated = { ...prev, [key]: value };
       try {
-        localStorage.setItem('promptpilot_settings', JSON.stringify(updated));
+        localStorage.setItem('SPARK_settings', JSON.stringify(updated));
         fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -83,7 +84,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const setAllSettings = (newSettings: AppSettings) => {
     setSettings(newSettings);
     try {
-      localStorage.setItem('promptpilot_settings', JSON.stringify(newSettings));
+      localStorage.setItem('SPARK_settings', JSON.stringify(newSettings));
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      }).catch(err => console.warn('Failed to sync settings to server:', err));
+    } catch (e) {
+      console.warn('Failed to save settings to localStorage:', e);
+    }
+  };
+
+  const updateSettings = (partial: Partial<AppSettings>) => {
+    const newSettings = { ...settings, ...partial };
+    setSettings(newSettings);
+    try {
+      localStorage.setItem('SPARK_settings', JSON.stringify(newSettings));
       fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,7 +111,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSetting, setAllSettings, isLoaded }}>
+    <SettingsContext.Provider value={{ settings, updateSetting, updateSettings, setAllSettings, isLoaded }}>
       {children}
     </SettingsContext.Provider>
   );

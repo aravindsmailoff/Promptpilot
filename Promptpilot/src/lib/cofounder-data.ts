@@ -1,4 +1,4 @@
-// PromptPilot AI Co-Founder — Static Data Library
+// SPARK AI Co-Founder — Static Data Library
 // Curated database: Indian + US investors, Govt schemes, market benchmarks
 
 export interface InvestorRecord {
@@ -232,73 +232,8 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['All sectors'],
     stage: ['Idea', 'Pre-Seed', 'Seed', 'Series A'],
     deadline: 'Rolling (Apply anytime)',
-    link: 'https://www.nsws.gov.in/',
+    link: 'https://www.nsws.gov.in',
     type: 'Recognition',
-    state: 'National',
-  },
-  {
-    name: 'NIDHI-PRAYAS (Proof of Concept Grant)',
-    agency: 'DST – National Initiative for Developing and Harnessing Innovations',
-    description: 'Up to ₹10 lakh to individual innovators and startups for developing and testing Proof of Concept (PoC). Perfect for early-stage deep tech and hardware startups.',
-    amount: '₹10 Lakh (non-dilutive grant)',
-    eligibility: ['Indian citizen/startup', 'Idea/PoC stage', 'Technology/innovation focus'],
-    sectors: ['Deep Tech', 'Hardware', 'AI/ML', 'Biotech', 'Agritech', 'CleanTech'],
-    stage: ['Idea', 'Pre-Seed'],
-    deadline: 'Rolling (Through NIDHI-PRAYAS centers)',
-    link: 'https://www.nidhi-prayas.org',
-    type: 'Grant',
-    state: 'National',
-  },
-  {
-    name: 'NIDHI-EIR (Entrepreneur in Residence)',
-    agency: 'DST – National Initiative for Developing and Harnessing Innovations',
-    description: 'Monthly stipend of ₹30,000 for up to 1 year for promising entrepreneurs to pursue their startup idea full-time without financial worry.',
-    amount: '₹30,000/month for 1 year (₹3.6 Lakh total)',
-    eligibility: ['Graduate from recognized institute', 'Full-time startup focus', 'Promising idea stage'],
-    sectors: ['Technology', 'Deep Tech', 'Innovation-driven'],
-    stage: ['Idea', 'Pre-Seed'],
-    deadline: 'Rolling (Through NIDHI-EIR centers)',
-    link: 'https://www.nidhi-eir.in',
-    type: 'Grant',
-    state: 'National',
-  },
-  {
-    name: 'BIRAC SITARE-G (Biotech Ignition Grant)',
-    agency: 'Biotechnology Industry Research Assistance Council',
-    description: 'Up to ₹50 lakh grant for biotech/healthtech startups at Seed to Series A stage. For product development, clinical validation, scale-up.',
-    amount: 'Up to ₹50 Lakh (non-dilutive)',
-    eligibility: ['Biotech/Healthtech focus', 'DPIIT recognized preferred', 'Prototype or validation stage'],
-    sectors: ['Biotech', 'Healthtech', 'Pharma', 'Medtech', 'Agri-biotech'],
-    stage: ['Pre-Seed', 'Seed'],
-    deadline: 'Quarterly calls — check BIRAC portal',
-    link: 'https://birac.nic.in/login.php',
-    type: 'Grant',
-    state: 'National',
-  },
-  {
-    name: 'TDB Technology Development Program',
-    agency: 'Technology Development Board, DST',
-    description: 'Soft loan at 5% interest for commercializing indigenous technology. Up to ₹10 Cr for Indian companies developing/commercializing tech products.',
-    amount: 'Up to ₹10 Crore (5% p.a. soft loan)',
-    eligibility: ['Indian company', 'Technology commercialization', 'At least 50% Indian equity'],
-    sectors: ['Technology', 'Manufacturing', 'Deep Tech', 'CleanTech'],
-    stage: ['Seed', 'Series A'],
-    deadline: 'Rolling applications',
-    link: 'https://www.tdb.gov.in',
-    type: 'Loan',
-    state: 'National',
-  },
-  {
-    name: 'Atal Innovation Mission (AIM) Grant',
-    agency: 'NITI Aayog',
-    description: 'Incubation support, infrastructure, and mentorship for early-stage startups through 60+ Atal Incubation Centres across India.',
-    amount: 'Up to ₹10 Crore (infrastructure + support)',
-    eligibility: ['Early-stage startup', 'Innovation-driven idea', 'Social/economic impact'],
-    sectors: ['All sectors — Agri, Health, Water, Energy, Mobility, Education'],
-    stage: ['Idea', 'Pre-Seed', 'Seed'],
-    deadline: 'Rolling (apply to nearest AIC)',
-    link: 'https://aim.gov.in',
-    type: 'Incubation',
     state: 'National',
   },
   {
@@ -315,20 +250,72 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     state: 'National',
   },
   {
-    name: 'MeitY Startup Hub (MSH)',
+    name: 'NIDHI-PRAYAS (Proof of Concept Grant)',
+    agency: 'DST – National Initiative for Developing and Harnessing Innovations',
+    description: 'Up to ₹10 lakh to individual innovators and startups for developing and testing Proof of Concept (PoC). Perfect for early-stage deep tech and hardware startups.',
+    amount: '₹10 Lakh (non-dilutive grant)',
+    eligibility: ['Indian citizen/startup', 'Idea/PoC stage', 'Technology/innovation focus'],
+    sectors: ['Deep Tech', 'Hardware', 'AI/ML', 'Biotech', 'Agritech', 'CleanTech'],
+    stage: ['Idea', 'Pre-Seed'],
+    deadline: 'Rolling (Through NIDHI-PRAYAS centers)',
+    link: 'https://www.nidhi-prayas.org',
+    type: 'Grant',
+    state: 'National',
+  },
+  {
+    name: 'BIRAC SITARE-G (Biotech Ignition Grant)',
+    agency: 'Biotechnology Industry Research Assistance Council',
+    description: 'Up to ₹50 lakh grant for biotech/healthtech startups at Seed to Series A stage. For product development, clinical validation, scale-up.',
+    amount: 'Up to ₹50 Lakh (non-dilutive)',
+    eligibility: ['Biotech/Healthtech focus', 'DPIIT recognized preferred', 'Prototype or validation stage'],
+    sectors: ['Biotech', 'Healthtech', 'Pharma', 'Medtech', 'Agri-biotech'],
+    stage: ['Pre-Seed', 'Seed'],
+    deadline: 'Quarterly calls — check BIRAC portal',
+    link: 'https://birac.nic.in',
+    type: 'Grant',
+    state: 'National',
+  },
+  {
+    name: 'Technology Development Board (TDB) Soft Loan',
+    agency: 'Technology Development Board, DST',
+    description: 'Soft loan at 5% interest for commercializing indigenous technology. Up to ₹10 Cr for Indian companies developing/commercializing tech products.',
+    amount: 'Up to ₹10 Crore (5% p.a. soft loan)',
+    eligibility: ['Indian company', 'Technology commercialization', 'At least 50% Indian equity'],
+    sectors: ['Technology', 'Manufacturing', 'Deep Tech', 'CleanTech'],
+    stage: ['Seed', 'Series A'],
+    deadline: 'Rolling applications',
+    link: 'https://www.tdb.gov.in',
+    type: 'Loan',
+    state: 'National',
+  },
+  {
+    name: 'Atal Innovation Mission (AIM) Incubation',
+    agency: 'NITI Aayog',
+    description: 'Incubation support, infrastructure, and mentorship for early-stage startups through 60+ Atal Incubation Centres across India.',
+    amount: 'Up to ₹10 Crore (infrastructure + support)',
+    eligibility: ['Early-stage startup', 'Innovation-driven idea', 'Social/economic impact'],
+    sectors: ['All sectors — Agri, Health, Water, Energy, Mobility, Education'],
+    stage: ['Idea', 'Pre-Seed', 'Seed'],
+    deadline: 'Rolling (apply to nearest AIC)',
+    link: 'https://aim.gov.in',
+    type: 'Incubation',
+    state: 'National',
+  },
+  {
+    name: 'MeitY Startup Hub (MSH) Grants',
     agency: 'Ministry of Electronics and Information Technology',
     description: 'Grants, mentorship, and market access for IT/software/AI startups. Special focus on deep tech, cybersecurity, and digital India initiatives.',
     amount: 'Up to ₹25 Lakh + market access',
     eligibility: ['IT/software/AI/ML startup', 'DPIIT recognized preferred', 'Prototype ready'],
     sectors: ['AI/ML', 'SaaS', 'Cybersecurity', 'IoT', 'Blockchain', 'AR/VR'],
     stage: ['Pre-Seed', 'Seed', 'Series A'],
-    deadline: 'Quarterly calls — check MSH portal',
-    link: 'https://mshindia.in',
+    deadline: 'Quarterly calls — check MeitY portal',
+    link: 'https://www.meity.gov.in/meity-startup-hub',
     type: 'Grant',
     state: 'National',
   },
   {
-    name: 'MSME Technology Upgradation Scheme (CLCSS)',
+    name: 'MSME Champions Portal (CLCSS Subsidy)',
     agency: 'Ministry of MSME',
     description: '15% capital subsidy (max ₹15 lakh) for technology upgradation for small businesses on institutional credit. For manufacturing/product startups.',
     amount: '15% subsidy up to ₹15 Lakh',
@@ -336,8 +323,21 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['Manufacturing', 'Hardware', 'Textiles', 'Food Processing', 'Leather'],
     stage: ['Seed', 'Series A'],
     deadline: 'Rolling',
-    link: 'https://my.msme.gov.in/MyMsme/Reg/Welcome.aspx',
+    link: 'https://msme.gov.in',
     type: 'Grant',
+    state: 'National',
+  },
+  {
+    name: 'MSME Udyam Registration Portal',
+    agency: 'Ministry of MSME',
+    description: 'Free official MSME registration unlocking priority lending, collateral-free loans under CGTSME, subsidies, and government procurement preferences.',
+    amount: 'Collateral-free loans + subsidies',
+    eligibility: ['Micro/Small/Medium Enterprise', 'Manufacturing or Services'],
+    sectors: ['All sectors'],
+    stage: ['Idea', 'Pre-Seed', 'Seed', 'Series A'],
+    deadline: 'Rolling (register anytime)',
+    link: 'https://udyamregistration.gov.in',
+    type: 'Recognition',
     state: 'National',
   },
   {
@@ -354,7 +354,7 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     state: 'State',
   },
   {
-    name: 'Tamil Nadu Startup & Innovation Policy 2023',
+    name: 'Tamil Nadu TANSEED Startup Funding',
     agency: 'StartupTN (Govt of Tamil Nadu)',
     description: 'Cash incentives of up to ₹30 lakh for Tamil Nadu-based startups. Special support for women-led startups and deep tech.',
     amount: 'Up to ₹30 Lakh cash incentive',
@@ -362,7 +362,7 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['All sectors — special focus on CleanTech, AI, Healthtech'],
     stage: ['Pre-Seed', 'Seed', 'Series A'],
     deadline: 'Rolling',
-    link: 'https://startuptn.in/tanseed/',
+    link: 'https://startuptn.in',
     type: 'Grant',
     state: 'State',
   },
@@ -375,25 +375,25 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['IT', 'AI/ML', 'IoT', 'Healthcare Tech', 'Agritech'],
     stage: ['Idea', 'Pre-Seed', 'Seed'],
     deadline: 'Rolling',
-    link: 'https://schemes.startupmission.in/',
+    link: 'https://startupmission.kerala.gov.in',
     type: 'Grant',
     state: 'State',
   },
   {
-    name: 'Telangana State Innovation Cell (TSIC)',
+    name: 'T-Works Hardware Startup Support (Telangana)',
     agency: 'Govt of Telangana / T-Works',
-    description: 'Hardware startup support with prototyping facilities, funding connections, and access to T-Works (India\'s largest prototyping facility).',
+    description: 'Hardware startup support with prototyping facilities, funding connections, and access to T-Works — India\'s largest prototyping facility.',
     amount: 'Access to ₹100Cr+ facility + grants',
     eligibility: ['Telangana-based preferred', 'Hardware/IoT focus', 'Prototype stage'],
     sectors: ['Hardware', 'IoT', 'Electronics', 'Robotics', 'Deep Tech'],
     stage: ['Pre-Seed', 'Seed'],
     deadline: 'Rolling',
-    link: 'https://t-works.io',
+    link: 'https://tworks.telangana.gov.in',
     type: 'Incubation',
     state: 'State',
   },
   {
-    name: 'Make in India Initiative (PLI Scheme)',
+    name: 'Make in India – PLI Scheme',
     agency: 'Ministry of Commerce and Industry',
     description: 'Production Linked Incentive for manufacturing startups — 4-6% incentive on incremental sales from India-manufactured products.',
     amount: '4–6% on incremental sales',
@@ -401,12 +401,12 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['Electronics', 'Pharma', 'Textiles', 'Medical Devices', 'Auto Components'],
     stage: ['Seed', 'Series A', 'Series B'],
     deadline: 'Sector-specific — check PLI portal',
-    link: 'https://www.makeinindia.com/pli',
+    link: 'https://www.makeinindia.com',
     type: 'Grant',
     state: 'National',
   },
   {
-    name: 'NASSCOM 10,000 Startups Program',
+    name: 'NASSCOM FutureSkills & Startup Programs',
     agency: 'NASSCOM',
     description: 'India\'s largest tech startup program. Market access, investor connects, AWS/GCP cloud credits, and mentorship from top industry leaders.',
     amount: 'Cloud credits + investor access (non-cash)',
@@ -414,13 +414,12 @@ export const GOVERNMENT_SCHEMES: GovernmentScheme[] = [
     sectors: ['SaaS', 'AI/ML', 'IoT', 'Fintech', 'Healthtech', 'Enterprise Tech'],
     stage: ['Pre-Seed', 'Seed', 'Series A'],
     deadline: 'Rolling applications',
-    link: 'https://10000startups.com',
+    link: 'https://nasscom.in',
     type: 'Incubation',
     state: 'National',
   },
 ];
 
-// ──────────────────────────────────────────────
 // MARKET BENCHMARKS BY SECTOR (India)
 // ──────────────────────────────────────────────
 
@@ -441,19 +440,25 @@ export const MARKET_BENCHMARKS: MarketBenchmark[] = [
 // HELPER FUNCTIONS
 // ──────────────────────────────────────────────
 
-export function matchSchemesToStartup(sector: string, stage: string, state?: string): GovernmentScheme[] {
-  const sectorLower = sector.toLowerCase();
-  const stageLower = stage.toLowerCase();
+export function matchSchemesToStartup(sector: string = 'Technology', stage: string = 'Idea', state?: string): GovernmentScheme[] {
+  const sectorLower = (sector || 'Technology').toLowerCase();
+  const stageLower = (stage || 'Idea').toLowerCase();
 
-  return GOVERNMENT_SCHEMES.filter(scheme => {
+  let matches = GOVERNMENT_SCHEMES.filter(scheme => {
     const sectorMatch =
       scheme.sectors.some(s => s.toLowerCase() === 'all sectors') ||
       scheme.sectors.some(s => s.toLowerCase().includes(sectorLower) || sectorLower.includes(s.toLowerCase()));
 
     const stageMatch = scheme.stage.some(s => s.toLowerCase().includes(stageLower) || stageLower.includes(s.toLowerCase()));
 
-    return sectorMatch && stageMatch;
-  }).slice(0, 8);
+    return sectorMatch || stageMatch;
+  });
+
+  if (matches.length === 0) {
+    matches = GOVERNMENT_SCHEMES;
+  }
+
+  return matches.slice(0, 5);
 }
 
 export function matchInvestorsToStartup(sector: string, stage: string, geography?: string): InvestorRecord[] {

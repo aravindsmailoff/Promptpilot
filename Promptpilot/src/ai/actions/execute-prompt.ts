@@ -114,15 +114,14 @@ export async function executeVideoGeneration(prompt: string): Promise<string> {
   return "https://vjs.zencdn.net/v/oceans.mp4";
 }
 
-const RESEARCH_SYSTEM_PROMPT = `You are PromptPilot Startup R&D AI — a brutal, honest, and direct startup strategist.
-Your primary role is to help the user generate and improvise startup ideas with zero fluff, zero bluff, and absolute clarity.
+const RESEARCH_SYSTEM_PROMPT = `You are SPARK Neural AI — an advanced, direct, and high-precision assistant.
+Your role is to respond accurately, concisely, and contextually to the user's exact prompt.
 
 OUTPUT RULES (follow strictly):
-1. Focus entirely on startup ideation, brutal reality, market risks, and improvising the concept. Tell the hard truths. No academic fluff or bluff.
-2. The output MUST be clean, clear, and easy to read. Do NOT use noisy formatting symbols like excessive stars, hashes, or complex nested bullet symbols (e.g. avoid things like '*$', '##', excessive bolding, or weird list structures). Keep headings simple and paragraphs concise.
-3. Do NOT output, render, or hallucinate any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets under any circumstances.
-4. Provide actionable startup idea pathways, target niches, and competitive dynamics. Cite source URLs inline when web data is provided.
-5. Provide a "Brutal Startup Analysis & Next Steps" section with 3–5 direct, no-bluff takeaways at the end.`;
+1. Address the user's actual prompt directly. If the user says hello or asks a casual question, greet them pleasantly and ask how you can help. If they ask a technical question, provide clear, accurate guidance. If they ask for startup or business advice, provide sharp, insightful strategic analysis.
+2. The output MUST be clean, clear, and easy to read. Do NOT use noisy formatting symbols like excessive stars, hashes, or messy nested bullets. Keep answers concise and natural.
+3. Do NOT output, render, or hallucinate any image markdown syntax (e.g., \`![image](...)\`), image placeholders, or media brackets in text responses.
+4. When live research sources are provided, cite relevant facts and references accurately.`;
 
 export async function executePromptViaApi(
   prompt: string,
@@ -134,7 +133,8 @@ export async function executePromptViaApi(
     ollamaModel?: string;
     localEngine?: 'ollama' | 'python';
     pythonServerUrl?: string;
-  }
+  },
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
 ): Promise<string> {
 
   // ── IMAGE / VIDEO paths (remain as is) ────────────────
@@ -143,7 +143,7 @@ export async function executePromptViaApi(
 
   // If in headless test environment, return a clean mock response instantly to bypass LLM timeouts
   if (process.env.HEADLESS === 'true') {
-    console.log('[PromptPilot Test Mode] Returning mock LLM response instantly.');
+    console.log('[SPARK Test Mode] Returning mock LLM response instantly.');
     return `Mock LLM response for: "${prompt}". This is a simulated high-fidelity output for CI testing.
 
 ## Summary
@@ -154,72 +154,96 @@ export async function executePromptViaApi(
 1. [Mock Source](http://localhost:9002/mock)`;
   }
 
-  // ── TEXT GENERATION path (OLLAMA / LOCAL ONLY) ──────────────────────────────
-  // Force local Ollama engine with gemma2:2b as required
-  const forcedSettings = {
-    ...settings,
-    useOllama: true,
-    ollamaModel: 'gemma2:2b',
-    localEngine: 'ollama' as 'ollama' | 'python'
-  };
-
-  // Fetch live web data before calling local synthesis
+  // Fetch live web data only for informative/research queries (skip short greetings/conversations)
   let enrichedPrompt = prompt;
   let sourcesFooter = '';
+  const isCasualOrGreeting = /^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening|night)|howdy|sup|what'?s\s*up)\b/i.test(prompt.trim()) || prompt.trim().length <= 8;
 
-  try {
-    const { conductResearch, buildResearchPrompt } = await import('@/ai/research');
-    console.log('[PromptPilot Research AI] Conducting live web research...');
-    const research = await conductResearch(prompt);
+  if (!isCasualOrGreeting) {
+    try {
+      const { conductResearch, buildResearchPrompt } = await import('@/ai/research');
+      console.log('[SPARK Research AI] Conducting live web research...');
+      const research = await conductResearch(prompt);
 
-    if (research.sources.length > 0) {
-      enrichedPrompt = await buildResearchPrompt(prompt, research);
-      sourcesFooter = research.sources
-        .map((s, i) => `${i + 1}. [${s.title}](${s.url})`)
-        .join('\n');
-      console.log(`[PromptPilot Research AI] Research complete. ${research.sources.length} sources injected.`);
-    } else {
-      console.log('[PromptPilot Research AI] No live sources found — using training knowledge.');
+      if (research.sources.length > 0) {
+        enrichedPrompt = await buildResearchPrompt(prompt, research);
+        sourcesFooter = research.sources
+          .map((s, i) => `${i + 1}. [${s.title}](${s.url})`)
+          .join('\n');
+        console.log(`[SPARK Research AI] Research complete. ${research.sources.length} sources injected.`);
+      } else {
+        console.log('[SPARK Research AI] No live sources found — using training knowledge.');
+      }
+    } catch (researchErr) {
+      console.warn('[SPARK Research AI] Research phase failed, proceeding with raw prompt:', researchErr);
     }
-  } catch (researchErr) {
-    console.warn('[PromptPilot Research AI] Research phase failed, proceeding with raw prompt:', researchErr);
   }
 
-  // ── SYNTHESIS PHASE ─────────────────────────────
-  // Send enriched prompt to Ollama / local engine for synthesis
+  // Build the message thread with history if available
+  const sanitizedHistory = (history || [])
+    .filter(m => m.content && (m.role === 'user' || m.role === 'assistant'))
+    .slice(-6)
+    .map(m => ({ role: m.role, content: m.content }));
+
+  const conversationMessages = [
+    { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
+    ...sanitizedHistory,
+    { role: 'user', content: enrichedPrompt }
+  ];
+
+  // ── TEXT GENERATION path (LOCAL OLLAMA + CLOUD AI FALLBACK) ────────────────
   let text = '';
-  const localEngine = forcedSettings.localEngine;
+  const useOllama = settings?.useOllama ?? true;
+  const localEngine = settings?.localEngine || 'ollama';
+  const activeModel = settings?.ollamaModel || 'qwen3.5:2b';
+  const activeUrl = settings?.ollamaBaseUrl || 'http://127.0.0.1:11434';
+  const pyUrl = settings?.pythonServerUrl || 'http://127.0.0.1:8000';
 
-  try {
-    if (localEngine === 'python') {
-      const activeUrl = forcedSettings.pythonServerUrl || 'http://127.0.0.1:8000';
-      console.log(`[PromptPilot Research AI] Synthesizing via Python Server: ${activeUrl}`);
-      text = await executePythonChat(
-        activeUrl,
-        [
-          { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
-          { role: 'user', content: enrichedPrompt },
-        ],
-        0.4
-      );
-    } else {
-      const activeModel = forcedSettings.ollamaModel;
-      const activeUrl = forcedSettings.ollamaBaseUrl || 'http://127.0.0.1:11434';
-      console.log(`[PromptPilot Research AI] Synthesizing via Ollama model: ${activeModel}`);
-
-      text = await executeOllamaChat(
-        activeUrl,
-        activeModel,
-        [
-          { role: 'system', content: RESEARCH_SYSTEM_PROMPT },
-          { role: 'user', content: enrichedPrompt },
-        ],
-        0.4
-      );
+  // 1. Local Engine execution (Ollama with qwen3.5:2b)
+  if (useOllama) {
+    try {
+      if (localEngine === 'python') {
+        console.log(`[SPARK] Executing via Local Python Server: ${pyUrl}`);
+        text = await executePythonChat(
+          pyUrl,
+          conversationMessages,
+          0.4
+        );
+      } else {
+        console.log(`[SPARK] Executing via Local Ollama (${activeModel} at ${activeUrl})...`);
+        text = await executeOllamaChat(
+          activeUrl,
+          activeModel,
+          conversationMessages,
+          0.4,
+          undefined,
+          { numCtx: 2048, numPredict: 500 }
+        );
+      }
+    } catch (localErr: any) {
+      console.error(`[SPARK Execution] Local Ollama failed: ${localErr.message}`);
+      throw new Error(`Local model execution failed (${activeModel}): ${localErr.message}`);
     }
-  } catch (err: any) {
-    console.error('[PromptPilot Server Action Error]:', err);
-    return `Error: ${err.message || err}`;
+  } else {
+    // Only use Cloud AI if useOllama was explicitly set to false
+    console.log(`[SPARK Execution] Synthesizing output via Cloud AI Fleet...`);
+    for (const model of ROUTING_MODELS) {
+      try {
+        const completion = await hfClient.chat.completions.create({
+          model,
+          messages: conversationMessages as any,
+          temperature: 0.4
+        });
+        text = completion.choices[0]?.message?.content || '';
+        if (text) break;
+      } catch (cloudErr: any) {
+        console.warn(`[SPARK Execution] Cloud AI model ${model} failed:`, cloudErr.message);
+      }
+    }
+  }
+
+  if (!text) {
+    return `Execution failed: Could not retrieve a response from local Ollama model (${activeModel} at ${activeUrl}). Please make sure Ollama is running ('ollama serve').`;
   }
 
   // Strip think/thought tags

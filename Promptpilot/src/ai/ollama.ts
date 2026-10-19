@@ -9,69 +9,98 @@ export async function executeOllamaChat(
   options?: { numCtx?: number; numPredict?: number }
 ): Promise<string> {
   const cleanUrl = baseURL.trim() || 'http://127.0.0.1:11434';
-  const ollamaModel = model.trim() || 'gemma2:2b';
+  const ollamaModel = model.trim() || 'qwen3.5:2b';
 
   try {
-    const chatUrl = `${cleanUrl}/v1/chat/completions`;
-    console.log(`[Ollama Client] Directing request to: ${chatUrl} (Model: ${ollamaModel})`);
+    const chatUrl = `${cleanUrl}/api/chat`;
+    console.log(`[Ollama Client] Directing request to: ${chatUrl} (Model: ${ollamaModel}, think: false, GPU: 100%)`);
+
+    // Format messages for Ollama API (ensures message.content is a string, moves images to .images)
+    const formattedMessages = messages.map(msg => {
+      if (typeof msg.content === 'string') {
+        return msg;
+      }
+      if (Array.isArray(msg.content)) {
+        let textParts = '';
+        const images: string[] = [];
+        for (const part of msg.content) {
+          if (part.type === 'text' && part.text) {
+            textParts += (textParts ? '\n' : '') + part.text;
+          } else if (part.type === 'image_url' && part.image_url?.url) {
+            const base64Data = part.image_url.url.replace(/^data:image\/[a-z]+;base64,/, '');
+            images.push(base64Data);
+          }
+        }
+        return {
+          role: msg.role,
+          content: textParts,
+          ...(images.length > 0 ? { images } : {})
+        };
+      }
+      return {
+        role: msg.role,
+        content: String(msg.content ?? '')
+      };
+    });
+
+    const requestBody: any = {
+      model: ollamaModel,
+      messages: formattedMessages,
+      stream: false,
+      think: false, // Turn off slow multi-paragraph internal reasoning
+      options: {
+        num_ctx: options?.numCtx ?? 2048, // Optimize context size to fit 100% in RTX 3050 VRAM
+        num_predict: options?.numPredict ?? 600, // Keep responses focused and swift (under 10s)
+        num_gpu: 99, // Offload 100% of model layers to GPU
+        temperature,
+      }
+    };
+
+    if (responseFormat?.type === 'json_object') {
+      requestBody.format = 'json';
+    }
 
     const response = await fetch(chatUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: ollamaModel,
-        messages,
-        temperature,
-        response_format: responseFormat,
-        stream: false,
-        options: {
-          num_ctx: options?.numCtx ?? 1536, // Limit context window to 1536 to save VRAM on tight GPUs like RTX 3050
-          num_predict: options?.numPredict ?? 400, // Limit output generation to 400 tokens for swift (under 3s) GPU inference
-        }
-      }),
-      // 300 seconds timeout to support slower machines during local inference
-      signal: AbortSignal.timeout(300000),
+      body: JSON.stringify(requestBody),
+      // 120 seconds timeout for local inference
+      signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
       const errText = await response.text();
       try {
         const parsed = JSON.parse(errText);
-        const errMsg = parsed.error?.message || '';
+        const errMsg = parsed.error?.message || parsed.error || '';
         const errType = parsed.error?.type || '';
 
         // Model not downloaded yet
         if (
           errType === 'not_found_error' ||
           errMsg.toLowerCase().includes('not found') ||
-          errMsg.toLowerCase().includes('model') && errMsg.toLowerCase().includes('not found')
+          (errMsg.toLowerCase().includes('model') && errMsg.toLowerCase().includes('not found'))
         ) {
           throw new Error(
             `The model '${ollamaModel}' was not found in your local Ollama installation.\n\n` +
             `To fix this, run the following command in your terminal:\n` +
             `   ollama pull ${ollamaModel}\n\n` +
-            `Once the download completes, try again. If you want a lighter model, ` +
-            `try 'ollama pull gemma2:2b' and update the Active Model Tag in Settings.`
+            `Once the download completes, try again.`
           );
         }
 
         if (errMsg.includes('requires more system memory') || errMsg.includes('requires more memory')) {
           throw new Error(
             `The local model '${ollamaModel}' requires more memory than is currently available on your machine.\n\n` +
-            `To resolve this, please try one of the following:\n` +
-            `1. Close other RAM-heavy applications to free up system memory.\n` +
-            `2. Run a lighter, highly-optimized model. We recommend pulling 'gemma2:2b' (approx. 1.6 GB):\n` +
-            `   Run 'ollama pull gemma2:2b' in your terminal.\n` +
-            `   Then go to Settings in PromptPilot and update the Active Model Tag to 'gemma2:2b'.`
+            `To resolve this, please try closing other heavy applications to free up system memory.`
           );
         }
       } catch (e: any) {
         if (
           e.message.includes('not found') ||
-          e.message.includes('requires more memory') ||
-          e.message.includes('gemma2:2b')
+          e.message.includes('requires more memory')
         ) {
           throw e;
         }
@@ -80,10 +109,13 @@ export async function executeOllamaChat(
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    let content = data.message?.content ?? data.choices?.[0]?.message?.content;
     if (content === undefined || content === null) {
       throw new Error(`Ollama response payload did not contain message content.`);
     }
+
+    // Strip internal thinking tags (<think>...</think> or <thought>...</thought>) if any exist
+    content = content.replace(/<(think|thought)>[\s\S]*?<\/\1>/g, '').trim();
 
     return content;
   } catch (error: any) {

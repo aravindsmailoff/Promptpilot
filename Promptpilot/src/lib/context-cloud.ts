@@ -1,4 +1,5 @@
-import { prisma } from '@/lib/db';
+import { rtdb } from '@/lib/firebase';
+import { ref, push, set, get } from 'firebase/database';
 import crypto from 'crypto';
 
 function dotProduct(vecA: number[], vecB: number[]): number {
@@ -24,37 +25,40 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
   return dotProduct(vecA, vecB) / (magA * magB);
 }
 
-// Generate embeddings via Hugging Face Serverless Inference API
+// Generate embeddings via local Ollama API (or local term vector fallback)
 export async function getEmbedding(text: string): Promise<number[]> {
-  const hfToken = process.env.HF_TOKEN;
-  if (!hfToken) {
-    throw new Error('HF_TOKEN environment variable is not defined.');
-  }
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+  const model = process.env.OLLAMA_EMBEDDING_MODEL || 'all-minilm';
 
-  // Model: sentence-transformers/all-MiniLM-L6-v2 (same model as local server)
-  const response = await fetch(
-    'https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2',
-    {
+  try {
+    const response = await fetch(`${ollamaUrl}/api/embeddings`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${hfToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ inputs: text }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: text }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data.embedding)) {
+        return data.embedding;
+      }
     }
-  );
+  } catch (e) {}
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Hugging Face embedding failed: ${response.status} - ${errorText}`);
+  // Local fallback 64-dim normalized term-hash embedding if Ollama embedding isn't loaded
+  const vec = new Array(64).fill(0);
+  const words = text.toLowerCase().split(/\W+/);
+  for (const word of words) {
+    let hash = 0;
+    for (let i = 0; i < word.length; i++) {
+      hash = (hash << 5) - hash + word.charCodeAt(i);
+      hash |= 0;
+    }
+    const idx = Math.abs(hash) % 64;
+    vec[idx] += 1;
   }
-
-  const data = await response.json();
-  if (!Array.isArray(data)) {
-    throw new Error('Unexpected response format from Hugging Face embedding API.');
-  }
-
-  return data as number[];
+  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0)) || 1;
+  return vec.map(v => v / norm);
 }
 
 export async function storeMemoryInCloud(
@@ -68,30 +72,39 @@ export async function storeMemoryInCloud(
 
   const contentHash = crypto.createHash('sha256').update(cleaned).digest('hex');
 
-  // Check if already exists in PostgreSQL database to avoid duplicate indexing
-  const existing = await prisma.memory.findUnique({
-    where: { contentHash },
-  });
-  if (existing) {
-    return { status: 'duplicate', id: existing.id };
-  }
+  // Check duplicate in Firebase Realtime Database
+  try {
+    const snap = await get(ref(rtdb, 'memories'));
+    if (snap.exists()) {
+      const allMems = snap.val();
+      for (const k of Object.keys(allMems)) {
+        if (allMems[k].contentHash === contentHash) {
+          return { status: 'duplicate', id: k };
+        }
+      }
+    }
+  } catch (e) {}
 
   // Get embedding from Hugging Face
   const embedding = await getEmbedding(cleaned);
 
-  // Store in PostgreSQL
-  const record = await prisma.memory.create({
-    data: {
-      content: cleaned,
-      source,
-      sourceApp,
-      metadata: JSON.stringify(metadata),
-      contentHash,
-      embedding,
-    },
+  // Store in Firebase Realtime Database
+  const newRef = push(ref(rtdb, 'memories'));
+  const id = newRef.key || `mem-${Date.now()}`;
+  const createdAt = new Date().toISOString();
+
+  await set(newRef, {
+    id,
+    content: cleaned,
+    source,
+    sourceApp,
+    metadata: JSON.stringify(metadata),
+    contentHash,
+    embedding,
+    createdAt,
   });
 
-  return { status: 'ok', id: record.id };
+  return { status: 'ok', id };
 }
 
 export async function searchMemoriesInCloud(
@@ -100,34 +113,34 @@ export async function searchMemoriesInCloud(
   sourceApp?: string
 ): Promise<any[]> {
   const qEmb = await getEmbedding(query);
+  let memories: any[] = [];
 
-  // Fetch all memories from PostgreSQL (filtered by sourceApp if specified)
-  const queryConditions: any = {};
-  if (sourceApp && sourceApp !== 'all') {
-    queryConditions.sourceApp = sourceApp;
-  }
-
-  const memories = await prisma.memory.findMany({
-    where: queryConditions,
-  });
+  try {
+    const snap = await get(ref(rtdb, 'memories'));
+    if (snap.exists()) {
+      const val = snap.val();
+      memories = Object.keys(val).map(k => ({ id: k, ...val[k] }));
+      if (sourceApp && sourceApp !== 'all') {
+        memories = memories.filter(m => m.sourceApp === sourceApp);
+      }
+    }
+  } catch (e) {}
 
   if (memories.length === 0) return [];
 
-  // Calculate cosine similarity in JS
   const scored = memories.map((mem) => {
-    const score = cosineSimilarity(qEmb, mem.embedding);
+    const score = cosineSimilarity(qEmb, mem.embedding || []);
     return {
       id: mem.id,
       content: mem.content,
       source: mem.source,
       source_app: mem.sourceApp,
-      created_at: mem.createdAt.toISOString(),
+      created_at: mem.createdAt || new Date().toISOString(),
       metadata: JSON.parse(mem.metadata || '{}'),
       score: Math.round(score * 10000) / 10000,
     };
   });
 
-  // Sort and return top K
   return scored
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
@@ -191,9 +204,7 @@ export function parseBrowserHistory(content: string): Array<{ url: string; title
       }
     }
     return items;
-  } catch (e) {
-    // Fallback to CSV parsing
-  }
+  } catch (e) {}
   const lines = content.split(/\r?\n/);
   for (let i = 1; i < lines.length; i++) {
     const parts = lines[i].split(',');
@@ -240,8 +251,6 @@ export function parseGmailExport(text: string): Array<{ content: string; meta: a
 
 export function parseZoomTranscript(text: string): Array<{ content: string; meta: any }> {
   const segments: Array<{ content: string; meta: any }> = [];
-  
-  // VTT matching pattern
   const vttPattern = /(\d+:\d+:\d+\.\d+\s*-->\s*\d+:\d+:\d+\.\d+)\r?\n([\s\S]+?)(?=\r?\n\d+:\d+|\Z)/g;
   let match;
   while ((match = vttPattern.exec(text)) !== null) {
@@ -254,7 +263,6 @@ export function parseZoomTranscript(text: string): Array<{ content: string; meta
   }
 
   if (segments.length === 0) {
-    // Plain text transcript matching format: "HH:MM:SS SPEAKER: text"
     const plainPattern = /(\d+:\d+:\d+)\s+([^:]+):\s+(.+)/;
     const lines = text.split(/\r?\n/);
     for (const line of lines) {

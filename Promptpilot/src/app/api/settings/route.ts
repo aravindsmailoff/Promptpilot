@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-const settingsPath = path.join(process.cwd(), 'promptpilot-settings.json');
+const settingsPath = path.join(process.cwd(), 'SPARK-settings.json');
 
 const DEFAULT_SETTINGS = {
   instantCopy: true,
   toneProfile: 'professional',
-  manualModelOverride: false,
-  useOllama: false,
+  manualModelOverride: true,
+  useOllama: true,
   ollamaBaseUrl: 'http://127.0.0.1:11434',
-  ollamaModel: 'gemma2:2b',
+  ollamaModel: 'qwen3.5:2b',
   localEngine: 'ollama',
   pythonServerUrl: 'http://127.0.0.1:8000'
 };

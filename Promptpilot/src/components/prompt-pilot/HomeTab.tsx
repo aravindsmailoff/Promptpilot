@@ -2,6 +2,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -40,6 +41,23 @@ import { MarkdownRenderer } from './MarkdownRenderer';
 import { HumanizerEditor } from './HumanizerEditor';
 import { CoFounderTab } from './CoFounderTab';
 import { Rocket } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import { CardContainer, CardBody, CardItem } from '@/components/aceternity/ThreeDCard';
+import { SparklesCore } from '@/components/aceternity/SparklesCore';
+import { Meteors } from '@/components/aceternity/Meteors';
+import { ShimmerButton } from '@/components/magic-ui/ShimmerButton';
+import { AiRouterBeams } from '@/components/magic-ui/AiRouterBeams';
+import { DecryptedText } from '@/components/react-bits/DecryptedText';
+import { Magnet } from '@/components/react-bits/Magnet';
+import { GradientText } from '@/components/react-bits/GradientText';
+import { SpotlightCard } from '@/components/react-bits/SpotlightCard';
+
+import { PromptQuickChips } from '@/components/kokonut-ui/PromptQuickChips';
+import { KokonutAnimatedTabs } from '@/components/kokonut-ui/KokonutAnimatedTabs';
+import { KokonutCard } from '@/components/kokonut-ui/KokonutCard';
+import { KokonutButton } from '@/components/kokonut-ui/KokonutButton';
+import { BentoFleetGrid } from '@/components/watermelon-ui/BentoFleetGrid';
+
 
 interface ChatMessage {
   id: string;
@@ -92,7 +110,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
   const [fileName, setFileName] = useState<string | null>(null);
 
   // Segmented view mode selection
-  const [mode, setMode] = useState<'rd' | 'startup'>('startup');
+  const [mode, setMode] = useState<'rd' | 'startup'>('rd');
 
   const imageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,10 +176,11 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   const handleRoute = async () => {
     if (!task.trim()) return;
+    const originalTask = task;
     setLoading(true);
     try {
       const output = await analyzeTaskAndGeneratePrompt({ 
-        taskDescription: task,
+        taskDescription: originalTask,
         imageUri: imageUri || undefined,
         fileText: fileText || undefined,
         settings: {
@@ -178,34 +197,49 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       }
       
       setResult({ ...output, refinements: 0 });
-      setChatMessages([]);
+      
+      // Store original user prompt query into chat messages timeline
+      const initialUserMsg: ChatMessage = {
+        id: `user-0-${Date.now()}`,
+        role: 'user',
+        content: originalTask
+      };
+      setChatMessages([initialUserMsg]);
       
       toast({
         title: "Autonomous Routing Complete",
         description: `Mission assigned to ${settings.useOllama ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`) : output.selectedAI}`
       });
 
-      // Save mission to DB if logged in
+      // Save mission to DB & localStorage
       let savedId: string | null = null;
       const isImage = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Image Generation' : false;
       const isVideo = output.selectedAI ? getAIById(output.selectedAI)?.category === 'Video Generation' : false;
-      if (session) {
-        savedId = await saveMissionHistory({
-          taskDescription: task,
-          selectedAI: settings.useOllama && !isImage && !isVideo
-            ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
-            : output.selectedAI,
-          aiUrl: settings.useOllama && !isImage && !isVideo
-            ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
-            : output.aiUrl,
-          reasoning: output.reasoning,
-          optimizedPrompt: output.optimizedPrompt,
-          isImageTask: isImage || isVideo
-        });
-        setCurrentHistoryId(savedId);
-      } else {
-        setCurrentHistoryId(null);
-      }
+      const missionPayload = {
+        taskDescription: originalTask,
+        selectedAI: settings.useOllama && !isImage && !isVideo
+          ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+          : output.selectedAI,
+        aiUrl: settings.useOllama && !isImage && !isVideo
+          ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
+          : output.aiUrl,
+        reasoning: output.reasoning,
+        optimizedPrompt: output.optimizedPrompt,
+        isImageTask: isImage || isVideo
+      };
+      savedId = await saveMissionHistory(missionPayload);
+      setCurrentHistoryId(savedId);
+
+      try {
+        const localRecord = {
+          id: savedId || `local-${Date.now()}`,
+          ...missionPayload,
+          executionOutput: null,
+          createdAt: new Date()
+        };
+        const existing = JSON.parse(localStorage.getItem('SPARK_local_history') || '[]');
+        localStorage.setItem('SPARK_local_history', JSON.stringify([localRecord, ...existing.filter((item: any) => item.id !== localRecord.id)]));
+      } catch (e) {}
 
       // Auto-deploy execution agent
       handleAutoExecute(output.optimizedPrompt, isImage, isVideo, savedId);
@@ -223,11 +257,12 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   const handleRefine = async () => {
     if (!feedback.trim() || !result) return;
+    const correctionFeedback = feedback.trim();
     setLoading(true);
     try {
       const output = await refinePrompt({ 
         previousPrompt: result.optimizedPrompt,
-        feedback: feedback,
+        feedback: correctionFeedback,
         settings: {
           useOllama: settings.useOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
@@ -244,6 +279,16 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
       const newRefinements = (result.refinements || 0) + 1;
       setResult({ ...result, optimizedPrompt: output.refinedPrompt, refinements: newRefinements });
       
+      // Push user's parameter adjustment to conversation timeline
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `user-${Date.now()}`,
+          role: 'user',
+          content: correctionFeedback
+        }
+      ]);
+
       setRefining(false);
       setFeedback('');
       toast({
@@ -251,30 +296,26 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         description: "Tactical data successfully applied."
       });
 
-      // Save refined mission to DB if logged in
+      // Save refined mission to DB
       let savedId: string | null = currentHistoryId;
       const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
       const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
-      if (session) {
-        if (savedId) {
-          await updateMissionHistoryPrompt(savedId, output.refinedPrompt);
-        } else {
-          savedId = await saveMissionHistory({
-            taskDescription: task,
-            selectedAI: settings.useOllama && !isImage && !isVideo
-              ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
-              : result.selectedAI,
-            aiUrl: settings.useOllama && !isImage && !isVideo
-              ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
-              : result.aiUrl,
-            reasoning: result.reasoning,
-            optimizedPrompt: output.refinedPrompt,
-            isImageTask: isImage || isVideo
-          });
-          setCurrentHistoryId(savedId);
-        }
+      if (savedId) {
+        await updateMissionHistoryPrompt(savedId, output.refinedPrompt);
       } else {
-        setCurrentHistoryId(null);
+        savedId = await saveMissionHistory({
+          taskDescription: task,
+          selectedAI: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
+            : result.selectedAI,
+          aiUrl: settings.useOllama && !isImage && !isVideo
+            ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
+            : result.aiUrl,
+          reasoning: result.reasoning,
+          optimizedPrompt: output.refinedPrompt,
+          isImageTask: isImage || isVideo
+        });
+        setCurrentHistoryId(savedId);
       }
 
       // Auto-deploy execution agent with refined prompt
@@ -306,71 +347,82 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   const handleRefineWithInput = async (saveCredits: boolean = false) => {
     if (!refineInput.trim() || !result) return;
-    const inputFeedback = refineInput;
+    const inputFeedback = refineInput.trim();
     setRefineInput('');
+
+    // 1. Immediately append the user's follow-up prompt query to chatMessages so it is visibly displayed!
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: inputFeedback
+    };
+
+    const updatedMessages = [...chatMessages, userMsg];
+    setChatMessages(updatedMessages);
+
+    setExecuting(true);
     setLoading(true);
 
     try {
-      const output = await analyzeTaskAndGeneratePrompt({
-        taskDescription: inputFeedback,
-        settings: {
+      const isImage = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Image Generation' : false;
+      const isVideo = result?.selectedAI ? getAIById(result.selectedAI)?.category === 'Video Generation' : false;
+
+      // Maintain conversation thread history (excluding the current user query which is passed as prompt)
+      const conversationHistory = updatedMessages.slice(0, -1).map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      const output = await executePromptViaApi(
+        inputFeedback,
+        isImage,
+        isVideo,
+        {
           useOllama: settings.useOllama,
           ollamaBaseUrl: settings.ollamaBaseUrl,
           ollamaModel: settings.ollamaModel,
           localEngine: settings.localEngine,
           pythonServerUrl: settings.pythonServerUrl
-        }
-      });
-      
-      if (output.error) {
-        throw new Error(output.error);
-      }
-      
-      setResult({ ...output, refinements: 0 });
-      
-      let savedId: string | null = null;
-      const isImage = getAIById(output.selectedAI)?.category === 'Image Generation';
-      const isVideo = getAIById(output.selectedAI)?.category === 'Video Generation';
-      if (session) {
-        savedId = await saveMissionHistory({
-          taskDescription: inputFeedback,
-          selectedAI: settings.useOllama && !isImage && !isVideo
-            ? (settings.localEngine === 'python' ? 'Local Python Server' : `Ollama (${settings.ollamaModel})`)
-            : output.selectedAI,
-          aiUrl: settings.useOllama && !isImage && !isVideo
-            ? (settings.localEngine === 'python' ? (settings.pythonServerUrl || 'http://127.0.0.1:8000') : (settings.ollamaBaseUrl || 'http://127.0.0.1:11434'))
-            : output.aiUrl,
-          reasoning: output.reasoning,
-          optimizedPrompt: output.optimizedPrompt,
-          isImageTask: isImage || isVideo
-        });
-        setCurrentHistoryId(savedId);
-      } else {
-        setCurrentHistoryId(null);
-      }
+        },
+        conversationHistory
+      );
 
-      setLoading(false);
+      setExecutionResult(output);
 
-      if (saveCredits) {
-        try {
-          await navigator.clipboard.writeText(output.optimizedPrompt);
-        } catch (clipErr) {
-          console.warn("Clipboard copy failed:", clipErr);
-        }
-        toast({
-          title: "Prompt Structured & Copied",
-          description: "Optimized prompt updated and copied to clipboard. Credits saved!"
-        });
-      } else {
-        await handleAutoExecute(output.optimizedPrompt, isImage, isVideo, savedId);
+      // 2. Append assistant response to chat
+      const assistantMsg: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: output,
+        type: isImage ? 'image' : isVideo ? 'video' : 'text',
+        optimizedPrompt: inputFeedback
+      };
+
+      setChatMessages(prev => [...prev, assistantMsg]);
+
+      if (currentHistoryId) {
+        await updateMissionHistoryOutput(currentHistoryId, output);
       }
     } catch (err: any) {
-      setLoading(false);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setExecutionResult(errorMsg);
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: `assistant-err-${Date.now()}`,
+          role: 'assistant',
+          content: `Execution failed. Error: ${errorMsg}`,
+          type: 'text'
+        }
+      ]);
       toast({
         variant: "destructive",
         title: "Execution Error",
-        description: err.message || "Failed to execute the new task."
+        description: err.message || "Failed to execute follow-up query."
       });
+    } finally {
+      setExecuting(false);
+      setLoading(false);
     }
   };
 
@@ -445,7 +497,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
           messages.push({
             id: `user-initial-${Date.now()}`,
             role: 'user',
-            content: promptToRun
+            content: task || promptToRun
           });
         }
         messages.push({
@@ -458,11 +510,18 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
         return messages;
       });
 
-      // Update DB history record if logged in and we have a valid history ID
+      // Update DB history record and localStorage record
       const activeHistoryId = historyIdToUpdate || currentHistoryId;
       if (activeHistoryId) {
         await updateMissionHistoryOutput(activeHistoryId, output);
       }
+      try {
+        const existing = JSON.parse(localStorage.getItem('SPARK_local_history') || '[]');
+        if (existing.length > 0) {
+          existing[0].executionOutput = output;
+          localStorage.setItem('SPARK_local_history', JSON.stringify(existing));
+        }
+      } catch (e) {}
 
       toast({
         title: isImage ? "Synthesis Complete" : isVideo ? "Motion Synthesis Complete" : "Execution Complete",
@@ -479,7 +538,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
           messages.push({
             id: `user-initial-${Date.now()}`,
             role: 'user',
-            content: promptToRun
+            content: task || promptToRun
           });
         }
         messages.push({
@@ -526,7 +585,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     if (isImage) {
       const a = document.createElement('a');
       a.href = content;
-      a.download = `PromptPilot_Generated_Image.png`;
+      a.download = `SPARK_Generated_Image.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -540,7 +599,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     if (isVideo) {
       const a = document.createElement('a');
       a.href = content;
-      a.download = `PromptPilot_Generated_Video.mp4`;
+      a.download = `SPARK_Generated_Video.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -554,7 +613,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `PromptPilot_Execution_Output.txt`;
+    a.download = `SPARK_Execution_Output.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -571,7 +630,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `PromptPilot_Execution_Output.txt`;
+    a.download = `SPARK_Execution_Output.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -646,57 +705,66 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in duration-1000 pb-20">
-      {/* Segmented Mode Switcher */}
-      <div className="flex justify-center mt-4">
-        <div className="flex bg-black/40 p-1.5 rounded-2xl border border-white/10 backdrop-blur-md shadow-lg shadow-black/20">
-          <button
-            id="rd-mode-btn"
-            type="button"
-            onClick={() => setMode('rd')}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'rd' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-          >
-            <Cpu className="h-4 w-4" />
-            R&D Mode
-          </button>
-          <button
-            id="cofounder-mode-btn"
-            type="button"
-            onClick={() => setMode('startup')}
-            className={`px-8 py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${mode === 'startup' ? 'bg-accent text-accent-foreground shadow-lg shadow-accent/20' : 'text-white/60 hover:text-white hover:bg-white/5'}`}
-          >
-            <Rocket className="h-4 w-4" />
-            Startup Co-Founder
-          </button>
-        </div>
+      {/* Modern Kokonut UI Animated Segmented Mode Dock */}
+      <div className="flex justify-center mt-2">
+        <KokonutAnimatedTabs
+          tabs={[
+            {
+              id: 'rd',
+              label: 'Prompt Orchestrator',
+              icon: <Cpu className="h-4 w-4 text-cyan-300" />,
+            },
+            {
+              id: 'startup',
+              label: 'Startup Co-Founder',
+              icon: <Rocket className="h-4 w-4 text-pink-300" />,
+              badge: '2026 LIVE',
+              badgeColor: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40',
+            },
+          ]}
+          activeTab={mode}
+          onChange={(id) => setMode(id as 'rd' | 'startup')}
+        />
       </div>
 
       {mode === 'rd' ? (
         <>
           <div className="text-center space-y-4">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/20 text-primary text-[10px] font-black uppercase tracking-widest mb-4 shadow-[0_0_20px_rgba(59,130,246,0.2)]">
-          <Sparkles className="h-3 w-3 animate-pulse" />
-          Neural Orchestration Engine
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 rounded-full border border-primary/25 text-primary text-[10px] font-black uppercase tracking-widest mb-4 shadow-[0_0_20px_rgba(59,130,246,0.2)] backdrop-blur-md">
+          <Sparkles className="h-3 w-3 text-cyan-400 animate-pulse" />
+          <span>Neural Orchestration Engine</span>
         </div>
         <h1 className="text-6xl md:text-9xl font-black tracking-tighter text-white leading-[0.85] font-headline">
-          Master Your <span className="text-primary text-glow italic">Missions</span>.
+          Master Your <br className="hidden sm:inline" />
+          <GradientText colors={["#00f2ff", "#38bdf8", "#818cf8", "#c084fc", "#00f2ff"]}>
+            Missions
+          </GradientText>.
         </h1>
-        <p className="text-muted-foreground text-lg md:text-xl font-medium max-w-2xl mx-auto opacity-80">
+        <p className="text-white/60 text-lg md:text-xl font-medium max-w-2xl mx-auto">
           Sync visual intel and raw data. We deploy the world's most advanced AI for perfect execution.
         </p>
       </div>
 
-      <Card className="glass-panel border-white/10 rounded-[3rem] overflow-hidden shadow-[0_32px_128px_-32px_rgba(0,0,0,0.8)] group relative">
+      <KokonutCard glowColor="cyan" className="w-full">
+      <div className="glass-panel border-0 rounded-[2.5rem] overflow-hidden shadow-[0_32px_128px_-32px_rgba(0,0,0,0.8)] group relative">
+        <SparklesCore className="opacity-30" particleDensity={30} minSize={0.4} maxSize={1.8} particleColor="#00f2ff" />
+        <Meteors number={10} />
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary/20 blur-[120px] pointer-events-none animate-pulse" />
-        <CardContent className="p-0">
+        <CardContent className="p-0 relative z-10">
           <div className="relative">
             <Textarea 
               id="objective-input"
               placeholder="Deploy your mission parameters here..."
-              className="min-h-[280px] text-2xl md:text-3xl border-none focus-visible:ring-0 resize-none p-12 bg-transparent text-white placeholder:text-white/30 transition-all font-semibold leading-relaxed"
+              className="min-h-[240px] text-2xl md:text-3xl border-none focus-visible:ring-0 resize-none p-12 pb-6 bg-transparent text-white placeholder:text-white/30 transition-all font-semibold leading-relaxed"
               style={{ color: 'white', WebkitTextFillColor: 'white' }}
               value={task}
               onChange={(e) => setTask(e.target.value)}
             />
+
+            {/* KokonutUI Quick Intelligence Vectors */}
+            <div className="px-12 pb-4">
+              <PromptQuickChips onSelectPrompt={(p) => setTask(p)} />
+            </div>
             
             {/* Tactical Multimodal Previews */}
             <div className="flex flex-wrap gap-4 px-12 pb-8">
@@ -741,24 +809,29 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               <input type="file" accept="image/*" ref={imageInputRef} onChange={handleImageUpload} className="hidden" />
               <input type="file" accept=".txt,.md,.json,.js,.ts,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
               
-              <Button 
-                id="image-upload-btn"
-                variant="ghost" 
-                size="icon" 
-                className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
-                onClick={() => imageInputRef.current?.click()}
-              >
-                <ImagePlus className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
-              </Button>
-              <Button 
-                id="doc-upload-btn"
-                variant="ghost" 
-                size="icon" 
-                className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <FileTerminal className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
-              </Button>
+              <Magnet padding={40} magnetStrength={2.5}>
+                <Button 
+                  id="image-upload-btn"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
+                  onClick={() => imageInputRef.current?.click()}
+                >
+                  <ImagePlus className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
+                </Button>
+              </Magnet>
+              
+              <Magnet padding={40} magnetStrength={2.5}>
+                <Button 
+                  id="doc-upload-btn"
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-14 w-14 rounded-2xl bg-white/5 text-white hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all group/btn shadow-lg"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <FileTerminal className="h-6 w-6 group-hover/btn:scale-110 transition-transform" />
+                </Button>
+              </Magnet>
               
               <div className="hidden sm:flex flex-col items-start gap-1 px-4 border-l border-white/10">
                 <div className="flex items-center gap-2 text-[10px] font-black text-accent uppercase tracking-widest">
@@ -795,28 +868,84 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
               </div>
             </div>
 
-            <Button 
+            {/* Ultra-Attractive Animated Execute Mission Button */}
+            <motion.button 
               id="execute-mission-btn"
-              size="lg" 
-              onClick={handleRoute} 
-              disabled={loading || !task.trim()}
-              className="w-full md:w-auto px-12 h-14 text-sm bg-primary hover:bg-primary/90 text-primary-foreground rounded-2xl shadow-2xl shadow-primary/40 transition-all hover:scale-[1.03] active:scale-95 font-black uppercase tracking-widest group"
+              type="button"
+              onClick={() => {
+                if (!task.trim()) {
+                  document.getElementById("objective-input")?.focus();
+                  toast({
+                    title: "Mission Parameter Required",
+                    description: "Please enter your mission parameters or select a vector above to deploy.",
+                  });
+                  return;
+                }
+                handleRoute();
+              }}
+              whileHover={{ scale: 1.03, y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className={`relative group/exec overflow-hidden rounded-2xl px-9 h-14 flex items-center justify-center transition-all duration-300 cursor-pointer select-none border bg-gradient-to-r from-[#0e1628]/95 via-[#131f38]/95 to-[#0e1628]/95 ${
+                loading
+                  ? "border-cyan-500/60 text-cyan-300 shadow-[0_0_30px_rgba(0,242,255,0.3)]"
+                  : task.trim()
+                  ? "border-cyan-400 text-cyan-200 shadow-[0_0_32px_rgba(0,242,255,0.35)] hover:border-cyan-300 hover:text-white hover:shadow-[0_0_40px_rgba(0,242,255,0.5)]"
+                  : "border-cyan-500/50 text-cyan-300 hover:border-cyan-400 hover:text-white hover:shadow-[0_0_35px_rgba(0,242,255,0.4)] shadow-[0_0_20px_rgba(0,242,255,0.2)]"
+              }`}
             >
+              {/* Continuous Light Sweep Beam */}
+              <motion.div
+                className="absolute inset-0 w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 pointer-events-none"
+                animate={{
+                  x: ["-150%", "250%"],
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2.2,
+                  ease: "easeInOut",
+                  repeatDelay: 0.6,
+                }}
+              />
+
+              {/* Specular Lip Highlight */}
+              <div className="absolute inset-x-0 top-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent pointer-events-none" />
+
               {loading ? (
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>Syncing...</span>
+                <div className="flex items-center gap-3 relative z-10 font-black text-xs uppercase tracking-widest text-cyan-300">
+                  <Loader2 className="h-5 w-5 animate-spin text-cyan-300" />
+                  <span>Syncing Autonomous Mesh...</span>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <Sparkles className="h-5 w-5 group-hover:rotate-12 transition-transform" />
-                  <span>Execute Mission</span>
+                <div className="flex items-center gap-3 relative z-10">
+                  <div className="relative flex items-center justify-center">
+                    <Sparkles className="h-5 w-5 text-cyan-300 transition-transform duration-300 group-hover/exec:rotate-45 group-hover/exec:scale-125" />
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-cyan-400 animate-ping pointer-events-none" />
+                  </div>
+                  <span className="font-black text-sm uppercase tracking-widest text-cyan-200 group-hover/exec:text-white transition-colors">
+                    Execute Mission
+                  </span>
+                  <ArrowRight className="h-4 w-4 text-cyan-300 transition-transform duration-300 group-hover/exec:translate-x-1.5 group-hover/exec:text-white" />
                 </div>
               )}
-            </Button>
+            </motion.button>
           </div>
         </CardContent>
-      </Card>
+      </div>
+      </KokonutCard>
+
+      {/* SPARK AI Dispatch Routing Fabric - displayed after query is provided or during dispatch */}
+      {!result && (task.trim().length > 0 || loading) && (
+        <div className="w-full animate-in fade-in zoom-in-95 duration-500">
+          <AiRouterBeams 
+            isLoading={loading}
+            isExecuting={executing}
+            selectedAI={result?.selectedAI}
+            activeModel={settings.useOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
+            taskDescription={task}
+            useOllama={settings.useOllama}
+          />
+        </div>
+      )}
 
       {result && (
         <div className="space-y-10 animate-in zoom-in-95 duration-700">
@@ -909,40 +1038,89 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                 </Button>
               </div>
 
-              {(executing || chatMessages.some(m => m.role === 'assistant')) && (() => {
+              {(executing || chatMessages.length > 0) && (() => {
                 const aiConfig = result ? getAIById(result.selectedAI) : null;
                 const isImageTask = aiConfig?.category === 'Image Generation' || /create an image|generate an image|draw a|make an image|paint a/i.test(task);
                 const isVideoTask = aiConfig?.category === 'Video Generation' || /create a video|generate a video|make a video|render a video/i.test(task);
-                const assistantMessages = chatMessages.filter(m => m.role === 'assistant');
 
                 return (
-                  <div className="space-y-8 w-full animate-in fade-in duration-500">
-                    {/* Render completed responses */}
-                    {assistantMessages.map((msg, index) => {
+                  <div className="space-y-6 w-full animate-in fade-in duration-500">
+                    {/* Conversational Stream: renders user prompt queries, dispatch execution fabric, and AI responses */}
+                    {chatMessages.map((msg, index) => {
+                      if (msg.role === 'user') {
+                        const isLatestUserMsg = index === chatMessages.map(m => m.role).lastIndexOf('user');
+                        return (
+                          <div key={msg.id} className="space-y-6 w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            {/* User Query Block */}
+                            <div className="flex justify-end w-full">
+                              <div className="max-w-[90%] md:max-w-[80%] rounded-2xl md:rounded-3xl p-5 md:p-6 bg-gradient-to-br from-cyan-950/70 via-[#0d1f33]/80 to-black/70 border border-cyan-500/35 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,242,255,0.08)] space-y-2.5">
+                                <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shadow-sm">
+                                      <User className="h-3.5 w-3.5" />
+                                    </div>
+                                    <span className="text-xs font-black uppercase tracking-wider text-cyan-200">
+                                      Your Prompt Query
+                                    </span>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(msg.content);
+                                      toast({ title: "Copied", description: "Prompt query copied to clipboard." });
+                                    }}
+                                    className="h-6 px-2.5 rounded-lg text-white/60 hover:text-white hover:bg-white/10 text-[10px] font-bold uppercase tracking-wider"
+                                  >
+                                    <Copy className="h-3 w-3 mr-1" /> Copy
+                                  </Button>
+                                </div>
+                                <p className="text-sm md:text-base font-medium text-white leading-relaxed whitespace-pre-wrap select-text">
+                                  {msg.content}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* SPARK Neural Execution Fabric directly after the user's query */}
+                            <div className="w-full my-4 animate-in zoom-in-95 duration-500">
+                              <AiRouterBeams 
+                                isLoading={loading && isLatestUserMsg}
+                                isExecuting={executing && isLatestUserMsg}
+                                selectedAI={result?.selectedAI}
+                                activeModel={settings.useOllama ? (settings.ollamaModel || 'qwen3.5:2b') : result?.selectedAI || 'Cloud AI'}
+                                taskDescription={msg.content}
+                                useOllama={settings.useOllama}
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Assistant message rendering
                       const isMsgImage = msg.type === 'image';
                       const isMsgVideo = msg.type === 'video' || msg.content.startsWith('data:video/') || msg.content.endsWith('.mp4');
 
                       return (
                         <div 
                           key={msg.id} 
-                          className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 shadow-[0_32px_64px_rgba(0,0,0,0.5)]"
+                          className="relative p-6 md:p-8 border border-white/10 rounded-2xl md:rounded-3xl bg-[#0c1222]/95 backdrop-blur-2xl space-y-6 shadow-[0_24px_64px_rgba(0,0,0,0.6)] animate-in fade-in slide-in-from-bottom-3 duration-500"
                         >
                           {/* Decorative glowing gradient border top */}
-                          <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+                          <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
                           
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/5 pb-6">
-                            <div className="flex items-center gap-3.5">
-                              <div className="bg-primary/10 p-2.5 rounded-2xl border border-primary/20 shadow-inner">
-                                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/10 pb-4">
+                            <div className="flex items-center gap-3">
+                              <div className="bg-primary/15 p-2 rounded-xl border border-primary/25 shadow-inner">
+                                <Sparkles className="h-4 w-4 text-cyan-400 animate-pulse" />
                               </div>
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-sm font-bold text-white tracking-tight">AI Assistant Response</span>
-                                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/5 text-[9px] font-black uppercase px-2 py-0">
+                                  <span className="text-sm font-black text-white tracking-tight">SPARK AI Response</span>
+                                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-[9px] font-black uppercase px-2 py-0.5">
                                     Ready
                                   </Badge>
                                 </div>
-                                <span className="text-[10px] font-medium text-white/40 uppercase tracking-widest block mt-0.5">
+                                <span className="text-[10px] font-semibold text-white/40 uppercase tracking-widest block mt-0.5">
                                   {isMsgImage 
                                     ? "Powered by FLUX.1 [schnell]" 
                                     : isMsgVideo
@@ -950,7 +1128,6 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                     : settings.useOllama
                                     ? (settings.localEngine === 'python' ? 'Powered by Local Python Server' : `Powered by Ollama (${settings.ollamaModel})`)
                                     : (result?.selectedAI ? `Powered by ${result.selectedAI}` : "Powered by Gemma 4-31B")}
-                                  {assistantMessages.length > 1 && ` • Turn ${index + 1}`}
                                 </span>
                               </div>
                             </div>
@@ -964,7 +1141,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                     navigator.clipboard.writeText(msg.content);
                                     toast({ title: "Copied", description: "Response copied to clipboard" });
                                   }}
-                                  className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                                  className="h-8 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-[11px] font-bold uppercase tracking-wider px-3"
                                 >
                                   <Copy className="mr-1.5 h-3.5 w-3.5" /> Copy
                                 </Button>
@@ -973,7 +1150,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                 size="sm" 
                                 variant="ghost" 
                                 onClick={() => downloadMessageResult(msg)}
-                                className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                                className="h-8 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-[11px] font-bold uppercase tracking-wider px-3"
                               >
                                 <FileText className="mr-1.5 h-3.5 w-3.5" /> {isMsgImage ? "Download Image" : isMsgVideo ? "Download Video" : "Download"}
                               </Button>
@@ -982,7 +1159,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                                 variant="ghost" 
                                 onClick={() => handleRegenerateMessage(msg.id)}
                                 disabled={executing}
-                                className="h-10 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-xs font-bold uppercase tracking-wider px-4"
+                                className="h-8 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 hover:text-white border border-white/10 text-[11px] font-bold uppercase tracking-wider px-3"
                               >
                                 <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${executing ? 'animate-spin' : ''}`} /> Regenerate
                               </Button>
@@ -990,7 +1167,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                           </div>
 
                           {isMsgImage ? (
-                            <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
+                            <div className="bg-black/60 border border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
                               <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
                               <div className="relative max-w-lg w-full aspect-square rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/img-view">
                                 <img 
@@ -1001,7 +1178,7 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                               </div>
                             </div>
                           ) : isMsgVideo ? (
-                            <div className="bg-black/60 border border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
+                            <div className="bg-black/60 border border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center shadow-inner relative group/output-content min-h-[300px]">
                               <div className="absolute inset-0 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 pointer-events-none" />
                               <div className="relative max-w-lg w-full aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] group/video-view">
                                 <video 
@@ -1015,80 +1192,105 @@ export function HomeTab({ relaunchTask, clearRelaunchTask }: HomeTabProps) {
                               </div>
                             </div>
                           ) : (
-                            <HumanizerEditor 
-                              initialText={msg.content} 
-                              onTextUpdate={(newText) => handleUpdateMessageContent(msg.id, newText)} 
-                            />
+                            <div className="text-white/95 leading-relaxed select-text">
+                              <MarkdownRenderer content={msg.content} />
+                            </div>
                           )}
                         </div>
                       );
                     })}
 
-                    {/* Render active loading state */}
+                    {/* Active loading state */}
                     {executing && (
-                      <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-6 animate-in zoom-in-95 duration-500 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
-                        <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-                        <div className="flex items-center gap-3.5 border-b border-white/5 pb-6">
-                          <div className="bg-primary/10 p-2.5 rounded-2xl border border-primary/20 shadow-inner">
-                            <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+                      <div className="relative p-6 md:p-8 border border-cyan-500/30 rounded-2xl md:rounded-3xl bg-[#0c1222]/90 backdrop-blur-2xl space-y-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] animate-in zoom-in-95 duration-300">
+                        <div className="flex items-center gap-4">
+                          <div className="relative h-10 w-10 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center shrink-0">
+                            <Sparkles className="h-5 w-5 text-cyan-400 animate-pulse" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-white tracking-tight">AI Assistant Response</span>
-                              <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 animate-pulse text-[9px] font-black uppercase px-2 py-0">
-                                Thinking...
-                              </Badge>
+                              <span className="text-sm font-bold text-white">
+                                {isImageTask ? "SPARK is synthesizing image..." : isVideoTask ? "SPARK is rendering video..." : "SPARK Neural Engine is synthesizing response..."}
+                              </span>
+                              <span className="h-2 w-2 rounded-full bg-cyan-400 animate-ping" />
                             </div>
-                          </div>
-                        </div>
-                        <div className="bg-black/40 border border-white/5 rounded-3xl p-10 flex flex-col items-center justify-center min-h-[220px] text-center space-y-4 shadow-inner">
-                          <div className="relative">
-                            <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl scale-125 animate-pulse" />
-                            <div className="relative h-12 w-12 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center">
-                              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="text-white text-base font-bold tracking-tight">
-                              {isImageTask ? "AI is synthesizing image..." : isVideoTask ? "AI is rendering video..." : "AI is generating response..."}
-                            </div>
-                            <div className="text-xs text-white/40 font-medium">
-                              {isImageTask 
-                                ? "Rendering high-fidelity pixels with target model configurations." 
-                                : isVideoTask
-                                ? "Compiling frames and motion dynamics with target model configurations."
-                                : "Processing your instructions with target model configurations."}
-                            </div>
+                            <p className="text-xs text-white/50 mt-0.5">
+                              {settings.useOllama ? `Executing locally via Ollama (${settings.ollamaModel})` : "Processing via Neural AI Fleet"}
+                            </p>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Chat Input Console below the list of response boxes */}
-                    {!executing && assistantMessages.length > 0 && (
-                      <div className="relative p-10 border border-white/10 rounded-[2.5rem] bg-white/5 space-y-4 shadow-[0_32px_64px_rgba(0,0,0,0.5)]">
-                        <div className="absolute top-0 left-12 right-12 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-                        <Textarea
-                          id="chat-refine-input"
-                          placeholder="Type here to ask AI for the next task or refinement..."
-                          value={refineInput}
-                          onChange={(e) => setRefineInput(e.target.value)}
-                          className="min-h-[70px] max-h-[140px] text-base rounded-2xl bg-black/40 border-white/10 text-white p-4 focus-visible:ring-primary/40 shadow-inner resize-none leading-relaxed"
-                          style={{ color: 'white', WebkitTextFillColor: 'white' }}
-                        />
-                        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 w-full">
-                          <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest text-center sm:text-left">
-                            Ask AI for the next task or instruction
+                    {/* Chat Input Console below conversation */}
+                    {!executing && chatMessages.length > 0 && (
+                      <div className="relative p-6 md:p-7 border border-white/15 rounded-2xl md:rounded-3xl bg-[#0a0f1d]/90 backdrop-blur-2xl space-y-4 shadow-[0_24px_64px_rgba(0,0,0,0.6)] focus-within:border-cyan-500/50 transition-all">
+                        <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/40 to-transparent" />
+                        
+                        {/* Quick follow-up prompt chips */}
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-cyan-400/70 shrink-0 flex items-center gap-1">
+                            <Zap className="h-3 w-3" /> Quick Prompts:
                           </span>
-                          <Button
-                            id="chat-refine-execute-btn"
-                            onClick={() => handleRefineWithInput(false)}
-                            disabled={!refineInput.trim() || loading}
-                            className="h-11 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold uppercase tracking-wider transition-all shadow-md w-full sm:w-auto flex justify-center items-center"
-                          >
-                            <Zap className="mr-2 h-4 w-4" />
-                            Execute
-                          </Button>
+                          {[
+                            "Make it more concise",
+                            "Explain step by step with code",
+                            "Summarize into key bullet points",
+                            "Provide practical implementation details",
+                          ].map((chip) => (
+                            <button
+                              key={chip}
+                              type="button"
+                              onClick={() => {
+                                setRefineInput(chip);
+                              }}
+                              className="text-[11px] font-semibold px-3 py-1 rounded-xl bg-white/5 hover:bg-cyan-500/15 hover:text-cyan-300 text-white/70 border border-white/10 hover:border-cyan-500/30 transition-all shrink-0"
+                            >
+                              {chip}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="relative">
+                          <Textarea
+                            id="chat-refine-input"
+                            placeholder="Type your follow-up prompt, question, or correction here (Press Enter to send, Shift+Enter for newline)..."
+                            value={refineInput}
+                            onChange={(e) => setRefineInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (refineInput.trim() && !loading && !executing) {
+                                  handleRefineWithInput(false);
+                                }
+                              }
+                            }}
+                            className="min-h-[85px] max-h-[160px] text-sm md:text-base rounded-2xl bg-black/50 border-white/10 text-white p-4 pr-28 focus-visible:ring-1 focus-visible:ring-cyan-400/50 shadow-inner resize-none leading-relaxed"
+                            style={{ color: 'white', WebkitTextFillColor: 'white' }}
+                          />
+                          <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                            <Button
+                              id="chat-refine-execute-btn"
+                              type="button"
+                              onClick={() => handleRefineWithInput(false)}
+                              disabled={!refineInput.trim() || loading || executing}
+                              className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 text-white text-xs font-black uppercase tracking-wider transition-all shadow-lg shadow-cyan-500/20 disabled:opacity-40"
+                            >
+                              {executing || loading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Zap className="mr-1.5 h-3.5 w-3.5" />
+                                  <span>Send</span>
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-[10px] text-white/40 font-medium tracking-wider">
+                          <span>Press Enter to send • Shift + Enter for new line</span>
+                          <span>Ollama Engine: {settings.ollamaModel}</span>
                         </div>
                       </div>
                     )}

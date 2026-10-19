@@ -19,12 +19,12 @@ async function fetchViaJina(url: string): Promise<string> {
   const jinaUrl = `https://r.jina.ai/${url}`;
   const res = await fetch(jinaUrl, {
     headers: { 'Accept': 'text/plain', 'X-No-Cache': 'true' },
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(2500),
   });
   if (!res.ok) throw new Error(`Jina fetch failed for ${url}: ${res.status}`);
   const text = await res.text();
-  // Trim to 3500 chars to avoid token overflow with Ollama
-  return text.slice(0, 3500).trim();
+  // Trim to 1500 chars to avoid token bloat and keep inference swift
+  return text.slice(0, 1500).trim();
 }
 
 // DuckDuckGo Instant Answer API (free, no API key required)
@@ -36,7 +36,7 @@ async function getDDGData(query: string): Promise<{
     const encoded = encodeURIComponent(query);
     const res = await fetch(
       `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`,
-      { signal: AbortSignal.timeout(6000) }
+      { signal: AbortSignal.timeout(2000) }
     );
     if (!res.ok) return { sources: [] };
 
@@ -54,7 +54,7 @@ async function getDDGData(query: string): Promise<{
 
     // Collect related topic URLs
     const topics: any[] = data.RelatedTopics || [];
-    for (const topic of topics.slice(0, 5)) {
+    for (const topic of topics.slice(0, 4)) {
       if (topic.FirstURL && topic.Text && topic.Text.length > 20) {
         sources.push({
           title: topic.Text.slice(0, 80),
@@ -62,7 +62,6 @@ async function getDDGData(query: string): Promise<{
           snippet: topic.Text.slice(0, 200),
         });
       }
-      // Handle nested topic groups
       if (topic.Topics) {
         for (const sub of (topic.Topics as any[]).slice(0, 2)) {
           if (sub.FirstURL && sub.Text) {
@@ -89,7 +88,7 @@ async function getWikipediaSummary(topic: string): Promise<ResearchSource | null
     const slug = topic.replace(/\s+/g, '_');
     const res = await fetch(
       `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(slug)}`,
-      { signal: AbortSignal.timeout(5000) }
+      { signal: AbortSignal.timeout(2000) }
     );
     if (!res.ok) return null;
     const data = await res.json();

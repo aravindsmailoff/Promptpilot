@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { rtdb } from '@/lib/firebase';
+import { ref, get } from 'firebase/database';
 
 const CONTEXT_SERVER = process.env.CONTEXT_SERVER_URL || 'http://127.0.0.1:8001';
 
@@ -13,9 +14,7 @@ export async function GET(req: NextRequest) {
     try {
       const testRes = await fetch(`${CONTEXT_SERVER}/health`, { signal: AbortSignal.timeout(1000) });
       if (testRes.ok) useLocal = true;
-    } catch (err) {
-      // Ignore
-    }
+    } catch (err) {}
 
     if (useLocal) {
       let url = `${CONTEXT_SERVER}/memories?limit=${limit}`;
@@ -33,25 +32,26 @@ export async function GET(req: NextRequest) {
       const data = await res.json();
       return NextResponse.json(data);
     } else {
-      console.log('[Memories API] Fetching memories from PostgreSQL...');
-      const queryConditions: any = {};
-      if (sourceApp && sourceApp !== 'all') {
-        queryConditions.sourceApp = sourceApp;
-      }
-      const rows = await prisma.memory.findMany({
-        where: queryConditions,
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-      });
-
-      const results = rows.map((r) => ({
-        id: r.id,
-        content: r.content,
-        source: r.source,
-        source_app: r.sourceApp,
-        created_at: r.createdAt.toISOString(),
-        metadata: JSON.parse(r.metadata || '{}'),
-      }));
+      let results: any[] = [];
+      try {
+        const snap = await get(ref(rtdb, 'memories'));
+        if (snap.exists()) {
+          const val = snap.val();
+          results = Object.keys(val).map(k => ({
+            id: k,
+            content: val[k].content,
+            source: val[k].source,
+            source_app: val[k].sourceApp,
+            created_at: val[k].createdAt || new Date().toISOString(),
+            metadata: JSON.parse(val[k].metadata || '{}'),
+          }));
+          if (sourceApp && sourceApp !== 'all') {
+            results = results.filter(r => r.source_app === sourceApp);
+          }
+          results.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          results = results.slice(0, limit);
+        }
+      } catch (e) {}
 
       return NextResponse.json({ results });
     }

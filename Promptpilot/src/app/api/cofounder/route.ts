@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     const validModules: CoFounderModule[] = [
+      'zero-to-scale',
       'validate',
       'competitors',
       'pitch-deck',

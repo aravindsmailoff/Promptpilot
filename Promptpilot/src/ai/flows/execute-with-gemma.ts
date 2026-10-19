@@ -7,7 +7,7 @@
  * - ExecuteWithGemmaOutput - The return type for the function.
  */
 
-import { hfClient, PRIMARY_ROUTING_MODEL } from '@/ai/huggingface';
+import { executeOllamaChat } from '@/ai/ollama';
 import { z } from 'zod';
 
 const ExecuteWithGemmaInputSchema = z.object({
@@ -21,29 +21,29 @@ const ExecuteWithGemmaOutputSchema = z.object({
 export type ExecuteWithGemmaOutput = z.infer<typeof ExecuteWithGemmaOutputSchema>;
 
 /**
- * Executes a prompt using a high-speed intelligence model.
+ * Executes a prompt using the local Ollama qwen3.5:2b model.
  * @param input - The optimized prompt.
  * @returns The generated response.
  */
 export async function executeWithGemma(input: ExecuteWithGemmaInput): Promise<ExecuteWithGemmaOutput> {
   try {
-    console.log(`[HuggingFace Execution] Executing prompt using model ${PRIMARY_ROUTING_MODEL}`);
-    const response = await hfClient.chat.completions.create({
-      model: PRIMARY_ROUTING_MODEL,
-      messages: [
+    console.log(`[Ollama Execution] Executing prompt using local Ollama model qwen3.5:2b`);
+    const text = await executeOllamaChat(
+      'http://127.0.0.1:11434',
+      'qwen3.5:2b',
+      [
         { role: 'user', content: input.prompt }
       ],
-      temperature: 0.7
-    });
+      0.7
+    );
     
-    const text = response.choices[0]?.message?.content;
     if (!text) {
-      throw new Error('Intelligence engine failed to return a response.');
+      throw new Error('Local intelligence engine failed to return a response.');
     }
     
     return { response: text };
   } catch (error: any) {
-    console.error("[HuggingFace Execution Error]:", error);
-    throw new Error(`Failed to execute prompt: ${error.message}`);
+    console.error("[Ollama Execution Error]:", error);
+    throw new Error(`Failed to execute prompt locally with qwen3.5:2b: ${error.message}`);
   }
 }
