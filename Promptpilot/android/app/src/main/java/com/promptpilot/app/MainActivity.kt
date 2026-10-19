@@ -14,13 +14,21 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ProgressBar
+import android.widget.TextView
+import android.graphics.Typeface
+import android.content.res.ColorStateList
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -30,6 +38,7 @@ import com.google.android.gms.common.api.ApiException
 class MainActivity : ComponentActivity() {
 
     private lateinit var webView: WebView
+    private lateinit var splashOverlay: View
     private var fileChooserCallback: ValueCallback<Array<Uri>>? = null
     private lateinit var googleSignInClient: GoogleSignInClient
 
@@ -122,6 +131,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
         actionBar?.hide()
         super.onCreate(savedInstanceState)
@@ -244,6 +254,18 @@ class MainActivity : ComponentActivity() {
                             }, 1000)
                         }
                     } catch (e: Exception) {}
+
+                    // Smoothly fade out splash screen when page is ready
+                    runOnUiThread {
+                        if (splashOverlay.visibility == View.VISIBLE) {
+                            splashOverlay.animate()
+                                .alpha(0f)
+                                .setDuration(450)
+                                .withEndAction {
+                                    splashOverlay.visibility = View.GONE
+                                }
+                        }
+                    }
                 }
 
                 @Suppress("OVERRIDE_DEPRECATION")
@@ -253,6 +275,9 @@ class MainActivity : ComponentActivity() {
                     description: String?,
                     failingUrl: String?
                 ) {
+                    runOnUiThread {
+                        splashOverlay.visibility = View.GONE
+                    }
                     val safeUrl = serverUrl
                     val errorHtml = """
                         <!DOCTYPE html>
@@ -506,6 +531,53 @@ class MainActivity : ComponentActivity() {
         }
 
         rootLayout.addView(webView)
+
+        // Branded SPARK 2.0 Splash Overlay View
+        splashOverlay = LinearLayout(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setBackgroundColor(Color.parseColor("#020617"))
+
+            val logo = ImageView(this@MainActivity).apply {
+                val logoSize = (110 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(logoSize, logoSize).apply {
+                    bottomMargin = (20 * resources.displayMetrics.density).toInt()
+                }
+                setImageResource(R.drawable.splash_logo)
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+            addView(logo)
+
+            val titleView = TextView(this@MainActivity).apply {
+                text = "SPARK 2.0"
+                textSize = 28f
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+            }
+            addView(titleView)
+
+            val subtitleView = TextView(this@MainActivity).apply {
+                text = "Neural Orchestration Engine"
+                textSize = 13f
+                setTextColor(Color.parseColor("#00f2ff"))
+                gravity = Gravity.CENTER
+                setPadding(0, (6 * resources.displayMetrics.density).toInt(), 0, (28 * resources.displayMetrics.density).toInt())
+            }
+            addView(subtitleView)
+
+            val progress = ProgressBar(this@MainActivity).apply {
+                indeterminateTintList = ColorStateList.valueOf(Color.parseColor("#00f2ff"))
+                val size = (32 * resources.displayMetrics.density).toInt()
+                layoutParams = LinearLayout.LayoutParams(size, size)
+            }
+            addView(progress)
+        }
+        rootLayout.addView(splashOverlay)
 
         // Floating settings button (bottom-right) to change the server URL
         val settingsButton = ImageButton(this).apply {
